@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brew & Bean — QR Table Ordering</title>
+<meta name="description" content="Guests scan, order from a beautiful menu, kitchen sees it live.">
+<link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{fontFamily:{display:['Fraunces','serif'],sans:['"Plus Jakarta Sans"','system-ui','sans-serif']},colors:{espresso:'#1C1410',cream:'#FAF7F2',caramel:{DEFAULT:'#C2571B',dark:'#9A4213',light:'#F5E0CE'}}}}};</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+  .font-display{font-family:'Fraunces',serif}
+  .mesh{background:radial-gradient(600px 300px at 15% 10%,rgba(194,87,27,.35),transparent),radial-gradient(500px 280px at 85% 20%,rgba(122,46,14,.5),transparent),radial-gradient(700px 400px at 50% 100%,rgba(194,87,27,.18),transparent),#1C1410}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+  .floaty{animation:floaty 5s ease-in-out infinite}
+  @keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.4}}
+  .live-dot{animation:pulseDot 1.6s infinite}
+  .btn-press:active{transform:scale(.96)}
+  @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .marquee{animation:marquee 22s linear infinite}
+</style>
+</head>
+<body class="bg-espresso text-cream antialiased">
+<nav class="max-w-6xl mx-auto flex items-center justify-between px-6 py-5">
+  <div class="flex items-center gap-2.5"><div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-caramel to-[#7A2E0E] grid place-items-center text-xl">☕</div><span class="font-display font-bold text-xl">Brew & Bean</span></div>
+  <div class="flex gap-2.5">
+    <a href="/menu.html?table=T1" class="text-xs font-extrabold px-4 py-2.5 rounded-full border border-white/25 hover:bg-white hover:text-espresso transition btn-press">Demo menu</a>
+    <a href="/dashboard.html" class="text-xs font-extrabold px-4 py-2.5 rounded-full bg-caramel hover:bg-caramel-dark transition btn-press">Owner studio →</a>
+  </div>
+</nav>
+
+<header class="mesh">
+  <div class="max-w-6xl mx-auto px-6 pt-10 pb-16 grid md:grid-cols-2 gap-10 items-center">
+    <div>
+      <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-[11px] font-extrabold tracking-widest px-3.5 py-1.5 rounded-full"><span class="w-2 h-2 rounded-full bg-emerald-400 live-dot"></span>QR ORDERING • NO APP NEEDED • PWA READY</div>
+      <h1 class="font-display font-bold text-5xl md:text-6xl leading-[1.05] mt-5">Scan. Order.<br><span class="text-caramel-light">Sip happily.</span></h1>
+      <p class="mt-4 text-cream/70 text-lg leading-relaxed">Stick a QR on every table. Guests open a gorgeous menu, order in seconds — and tickets fly to your kitchen <b class="text-cream">live</b>, with the table number attached.</p>
+      <div class="mt-7 flex flex-wrap gap-3">
+        <a href="/menu.html?table=T1" class="px-6 py-3.5 rounded-full bg-caramel hover:bg-caramel-dark font-extrabold text-sm transition btn-press">📱 Try the guest menu</a>
+        <a href="/dashboard.html" class="px-6 py-3.5 rounded-full bg-cream text-espresso font-extrabold text-sm hover:bg-white transition btn-press">🧾 Open owner studio</a>
+      </div>
+      <div class="mt-6 flex items-center gap-4 text-[11px] font-bold text-cream/50">
+        <span>⚡ Realtime</span><span>🌙 Dark mode</span><span>📴 Works offline</span><span>🔔 Live tracking</span>
+      </div>
+    </div>
+    <div class="relative mx-auto w-full max-w-[300px]">
+      <div class="rounded-[2.5rem] border-[10px] border-black bg-cream text-espresso overflow-hidden shadow-2xl floaty">
+        <div class="bg-espresso text-cream px-4 py-2.5 flex items-center justify-between"><span class="font-display font-bold text-sm">Brew & Bean</span><span class="text-[9px] font-extrabold bg-caramel px-2 py-1 rounded-full">🪑 T4</span></div>
+        <img src="https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=500&q=70" class="w-full h-36 object-cover" alt="cappuccino">
+        <div class="p-3 space-y-2">
+          <div class="h-8 rounded-xl bg-espresso/5 flex items-center px-3 text-[11px] font-bold opacity-60">⌕ Search cappuccino…</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-xl bg-espresso/5 h-20 flex items-end p-2 text-[10px] font-extrabold">Cappuccino ₹149</div>
+            <div class="rounded-xl bg-caramel/15 border border-caramel/30 h-20 flex items-end p-2 text-[10px] font-extrabold text-caramel">Cold Brew ₹179</div>
+          </div>
+          <div class="rounded-xl bg-espresso text-cream text-center text-[11px] font-extrabold py-2.5">2 items • ₹328 →</div>
+        </div>
+      </div>
+      <div class="absolute -left-16 bottom-8 bg-cream text-espresso rounded-2xl shadow-2xl p-3 flex items-center gap-2.5 floaty" style="animation-delay:1.2s">
+        <div class="w-12 h-12 rounded-xl bg-espresso grid place-items-center text-[9px] text-cream font-extrabold text-center leading-tight">QR<br>T4</div>
+        <div class="text-[11px]"><div class="font-extrabold">New order 🔔</div><div class="opacity-50 font-semibold">ORD-104 • Table T4</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="overflow-hidden border-t border-white/10 py-3 bg-black/20">
+    <div class="flex gap-10 whitespace-nowrap marquee w-max text-[11px] font-extrabold tracking-[.2em] text-cream/50">
+      <span>⚡ REALTIME KITCHEN FEED</span><span>📱 INSTALLABLE PWA</span><span>🌙 DARK MODE MENU</span><span>🔔 LIVE ORDER TRACKING</span><span>🖨️ ONE-CLICK TABLE QRs</span><span>📊 ORDER RHYTHM CHART</span>
+      <span>⚡ REALTIME KITCHEN FEED</span><span>📱 INSTALLABLE PWA</span><span>🌙 DARK MODE MENU</span><span>🔔 LIVE ORDER TRACKING</span><span>🖨️ ONE-CLICK TABLE QRs</span><span>📊 ORDER RHYTHM CHART</span>
+    </div>
+  </div>
+</header>
+
+<section class="bg-cream text-espresso">
+  <div class="max-w-6xl mx-auto px-6 py-14 grid md:grid-cols-3 gap-4">
+    <div class="rounded-[1.8rem] p-6 border border-espresso/10 bg-white shadow-sm"><div class="text-3xl">🏷️</div><h3 class="font-display font-bold text-xl mt-2">1. Print QRs</h3><p class="text-sm opacity-60 mt-1 font-medium">Owner studio generates a QR per table. Download, print, stick. Done in a minute.</p></div>
+    <div class="rounded-[1.8rem] p-6 border border-espresso/10 bg-white shadow-sm"><div class="text-3xl">📸</div><h3 class="font-display font-bold text-xl mt-2">2. Guest scans</h3><p class="text-sm opacity-60 mt-1 font-medium">A stunning menu opens — dark mode, search, veg filter, cart, live tracking. No app install.</p></div>
+    <div class="rounded-[1.8rem] p-6 bg-espresso text-cream shadow-sm"><div class="text-3xl">🔔</div><h3 class="font-display font-bold text-xl mt-2">3. Kitchen serves</h3><p class="text-sm text-cream/60 mt-1 font-medium">Orders land instantly with table numbers. Kanban flow: pending → preparing → ready → served.</p></div>
+  </div>
+  <div class="max-w-6xl mx-auto px-6 pb-16 grid md:grid-cols-4 gap-3 text-center">
+    <div class="rounded-3xl bg-white border p-5"><div class="font-display font-bold text-3xl">⚡</div><div class="text-xs font-extrabold mt-1">Socket realtime</div></div>
+    <div class="rounded-3xl bg-white border p-5"><div class="font-display font-bold text-3xl">🔐</div><div class="text-xs font-extrabold mt-1">PIN-locked studio</div></div>
+    <div class="rounded-3xl bg-white border p-5"><div class="font-display font-bold text-3xl">📴</div><div class="text-xs font-extrabold mt-1">Offline menu</div></div>
+    <div class="rounded-3xl bg-white border p-5"><div class="font-display font-bold text-3xl">📊</div><div class="text-xs font-extrabold mt-1">Sales rhythm</div></div>
+  </div>
+</section>
+<footer class="text-center text-[11px] text-cream/40 py-8 font-semibold">Brew & Bean QR Ordering • Guest: <code>/menu.html?table=T1</code> • Owner: <code>/dashboard.html</code></footer>
+</body>
+</html>

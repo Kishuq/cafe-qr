@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Menu — Brew & Bean Cafe</title>
+<meta name="theme-color" content="#1C1410">
+<meta name="description" content="Scan, browse the menu and order from your table.">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-192.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: {
+    fontFamily: { display: ['Fraunces','serif'], sans: ['"Plus Jakarta Sans"','system-ui','sans-serif'] },
+    colors: { espresso: '#1C1410', cream: '#FAF7F2', caramel: { DEFAULT: '#C2571B', dark: '#9A4213', light: '#F5E0CE' } },
+    boxShadow: { soft: '0 10px 40px -12px rgba(28,20,16,.25)', card: '0 4px 20px -6px rgba(28,20,16,.15)' }
+  }}
+};
+try { if (localStorage.getItem('cafe_theme') === 'dark' || (!localStorage.getItem('cafe_theme') && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark'); } catch (e) {}
+</script>
+<script src="/socket.io/socket.io.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html{scroll-behavior:smooth}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+  .font-display{font-family:'Fraunces',serif}
+  .no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{scrollbar-width:none}
+  .glass{background:rgba(250,247,242,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+  .dark .glass{background:rgba(20,16,16,.8)}
+  @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+  .skeleton{background:linear-gradient(90deg,#e8e0d4 25%,#f5efe4 50%,#e8e0d4 75%);background-size:800px 100%;animation:shimmer 1.4s infinite linear}
+  .dark .skeleton{background:linear-gradient(90deg,#2a2220 25%,#3a2f2b 50%,#2a2220 75%);background-size:800px 100%}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+  .pop{animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .sheet-open{animation:slideUp .32s cubic-bezier(.2,.9,.25,1)}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .fade-in{animation:fadeIn .25s ease}
+  @keyframes cartBounce{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
+  .cart-bounce{animation:cartBounce .3s ease}
+  @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+  .live-dot{animation:pulseDot 1.6s infinite}
+  @keyframes spinSlow{to{transform:rotate(360deg)}}
+  .spinner{width:20px;height:20px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spinSlow .7s linear infinite}
+  .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hero-grad{background:linear-gradient(180deg,rgba(12,8,6,0) 20%,rgba(12,8,6,.55) 60%,rgba(12,8,6,.88) 100%)}
+  .btn-press:active{transform:scale(.96)}
+  .chip-active{background:#1C1410!important;color:#FAF7F2!important;border-color:#1C1410!important}
+  .dark .chip-active{background:#C2571B!important;border-color:#C2571B!important}
+  input,textarea{color-scheme:light}.dark input,.dark textarea{color-scheme:dark}
+</style>
+</head>
+<body class="bg-cream dark:bg-[#141010] text-espresso dark:text-[#F3ECE2] min-h-screen transition-colors">
+<noscript><div style="background:#b91c1c;color:#fff;font-weight:800;text-align:center;padding:14px;font-family:sans-serif">⚠️ JavaScript is BLOCKED in this browser — buttons can't work. Enable JavaScript (or tap the 🦁 Brave icon → Shields Down for this site) and reload.</div></noscript>
+
+<!-- ═══ HEADER ═══ -->
+<header class="glass sticky top-0 z-30 border-b border-espresso/10 dark:border-white/10">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+    <div class="flex items-center gap-2.5">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-caramel to-[#7A2E0E] grid place-items-center text-xl shadow-card shrink-0">☕</div>
+      <div class="min-w-0"><div id="cafeName" class="font-display font-bold text-lg leading-none truncate">Brew & Bean</div>
+      <button id="liveBadge" onclick="runDiag()" title="Tap for connection check" class="text-[10px] font-bold tracking-[.18em] text-caramel mt-0.5 flex items-center gap-1 btn-press"><span id="liveDot" class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span><span id="liveTxt">CONNECTING…</span><span class="opacity-40">ⓘ</span></button></div>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button id="installBtn" class="hidden text-xs font-bold px-3 py-2 rounded-full bg-caramel/10 text-caramel btn-press">⬇ Install</button>
+      <button id="shareBtn" title="Share menu" class="w-9 h-9 grid place-items-center rounded-full bg-espresso/5 dark:bg-white/10 text-sm btn-press">↗</button>
+      <button id="themeBtn" title="Dark mode" class="w-9 h-9 grid place-items-center rounded-full bg-espresso/5 dark:bg-white/10 text-sm btn-press">🌙</button>
+      <button id="tableBadge" class="text-xs font-extrabold px-3.5 py-2.5 rounded-full bg-espresso dark:bg-caramel text-cream btn-press whitespace-nowrap">T1 ▾</button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ HERO ═══ -->
+<div class="max-w-3xl mx-auto px-4 pt-4">
+  <div class="relative rounded-[1.8rem] overflow-hidden shadow-soft">
+    <img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1000&q=80" class="w-full h-52 object-cover" alt="coffee" fetchpriority="high">
+    <div class="absolute inset-0 hero-grad"></div>
+    <button onclick="openSheet('trackModal')" class="absolute top-3 right-3 glass text-espresso dark:text-white text-[11px] font-extrabold px-3 py-2 rounded-full btn-press">📦 My orders <span id="myCount" class="ml-1 bg-caramel text-white rounded-full px-1.5 hidden">0</span></button>
+    <div class="absolute bottom-0 left-0 right-0 p-5 text-white">
+      <div id="heroTable" class="inline-block text-[11px] font-extrabold tracking-widest bg-white/20 backdrop-blur px-3 py-1 rounded-full border border-white/30">TABLE T1</div>
+      <h1 class="font-display text-[1.7rem] leading-tight font-bold mt-1.5">Craving something?<br>Order in seconds. ✨</h1>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="relative -mt-0 pt-3">
+    <input id="search" placeholder="Search cappuccino, fries, cake…" class="w-full bg-white dark:bg-[#211915] border border-espresso/10 dark:border-white/10 rounded-2xl pl-11 pr-10 py-3.5 text-sm font-medium shadow-card outline-none focus:ring-2 ring-caramel placeholder:text-espresso/35 dark:placeholder:text-white/35">
+    <span class="absolute left-4 top-[27px] text-espresso/40 dark:text-white/40">⌕</span>
+    <button id="clearSearch" class="hidden absolute right-3 top-[22px] w-7 h-7 grid place-items-center rounded-full bg-espresso/10 dark:bg-white/10 text-xs">✕</button>
+  </div>
+
+  <div class="flex gap-2 mt-3">
+    <div id="cats" class="flex gap-2 overflow-x-auto no-scrollbar flex-1 py-0.5"></div>
+    <button id="vegOnly" class="shrink-0 text-xs font-extrabold px-4 rounded-full border border-espresso/15 dark:border-white/15 bg-white dark:bg-[#211915] btn-press">🥬 Veg</button>
+    <button id="dealsBtn" class="shrink-0 text-xs font-extrabold px-4 rounded-full border border-espresso/15 dark:border-white/15 bg-white dark:bg-[#211915] btn-press">🏷️ Deals</button>
+  </div>
+  <div id="hhBanner" class="hidden mt-3 rounded-2xl bg-gradient-to-r from-caramel to-[#8A3A10] text-white px-4 py-3 shadow-card"></div>
+
+  <div id="menuGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-4"></div>
+
+  <!-- Cafe card -->
+  <div class="mt-6 rounded-[1.8rem] overflow-hidden bg-espresso dark:bg-[#211915] text-cream shadow-soft">
+    <div class="p-5">
+      <div class="text-[10px] font-extrabold tracking-[.2em] text-caramel-light/80">ABOUT THE CAFE</div>
+      <div id="cafeCardName" class="font-display font-bold text-xl mt-1">Brew & Bean</div>
+      <div id="cafeCardBody" class="text-[13px] text-cream/70 mt-1.5 leading-relaxed"></div>
+      <div class="flex gap-2 mt-4">
+        <a id="dirBtn" href="#" target="_blank" class="flex-1 text-center text-[11px] font-extrabold bg-cream text-espresso rounded-full py-2.5 btn-press">📍 Directions</a>
+        <a id="callBtn" href="#" class="flex-1 text-center text-[11px] font-extrabold bg-cream text-espresso rounded-full py-2.5 btn-press">📞 Call</a>
+        <button id="waiterBtn" class="flex-1 text-[11px] font-extrabold bg-caramel text-white rounded-full py-2.5 btn-press">🛎️ Waiter</button>
+      </div>
+    </div>
+  </div>
+  <p class="text-center text-[11px] text-espresso/40 dark:text-white/40 mt-5 pb-32">Fresh on order • Taxes included • Powered by QR ordering</p>
+</div>
+
+<!-- ═══ CART BAR ═══ -->
+<button id="cartBtn" class="hidden fixed bottom-5 left-4 right-4 max-w-3xl mx-auto z-30 btn-press">
+  <span class="flex items-center justify-between bg-gradient-to-r from-espresso to-[#4A2C15] dark:from-caramel dark:to-caramel-dark text-cream rounded-[1.4rem] pl-4 pr-2 py-2 shadow-soft">
+    <span class="flex items-center gap-2.5"><span id="cartBubble" class="w-9 h-9 grid place-items-center rounded-xl bg-caramel font-extrabold text-sm">0</span>
+    <span class="text-left leading-tight"><span id="cartInfo" class="block text-[13px] font-extrabold">0 items</span><span id="cartHint" class="block text-[11px] opacity-70">Tap to review</span></span></span>
+    <span class="flex items-center gap-2 bg-cream text-espresso font-extrabold text-sm pl-4 pr-3 py-2.5 rounded-[1rem]"><span id="cartTotalMini">₹0</span><span>→</span></span>
+  </span>
+</button>
+
+<!-- ═══ SHEETS ═══ -->
+<div id="overlay" class="fixed inset-0 bg-black/55 backdrop-blur-[2px] hidden z-30 fade-in"></div>
+
+<!-- Cart sheet -->
+<div id="drawer" class="fixed bottom-0 left-0 right-0 max-w-3xl mx-auto z-40 hidden">
+  <div class="bg-cream dark:bg-[#1D1613] rounded-t-[1.8rem] max-h-[86vh] flex flex-col shadow-soft sheet-open">
+    <div class="pt-2.5 pb-1 grid place-items-center"><span class="w-11 h-1.5 rounded-full bg-espresso/15 dark:bg-white/15"></span></div>
+    <div class="px-5 py-2 flex justify-between items-center"><h2 class="font-display font-bold text-xl">Your order 🧾</h2><button data-close class="w-8 h-8 grid place-items-center rounded-full bg-espresso/5 dark:bg-white/10">✕</button></div>
+    <div id="cartItems" class="px-5 py-2 space-y-2.5 overflow-y-auto"></div>
+    <div class="p-5 pt-3 space-y-2.5">
+      <div class="rounded-2xl bg-white dark:bg-[#251D19] border border-espresso/10 dark:border-white/10 p-4 space-y-2">
+        <input id="custName" placeholder="👤 Your name" class="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-espresso/35 dark:placeholder:text-white/35 border-b border-espresso/10 dark:border-white/10 pb-2">
+        <input id="orderNote" placeholder="📝 Note — less sugar, extra spicy…" class="w-full bg-transparent text-sm font-medium outline-none placeholder:text-espresso/35 dark:placeholder:text-white/35">
+      </div>
+      <div class="flex justify-between text-sm font-semibold px-1"><span class="opacity-60">Subtotal</span><span id="cartTotal">₹0</span></div>
+      <button id="placeOrder" class="w-full bg-gradient-to-r from-caramel to-caramel-dark text-white font-extrabold py-4 rounded-2xl shadow-card btn-press flex items-center justify-center gap-2"><span id="placeLbl">Place order</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Success -->
+<div id="successModal" class="fixed inset-0 z-50 hidden items-center justify-center p-6 bg-black/60 backdrop-blur-sm fade-in">
+  <div class="bg-cream dark:bg-[#1D1613] rounded-[1.8rem] p-7 w-full max-w-sm text-center pop max-h-[90vh] overflow-y-auto">
+    <div class="w-16 h-16 mx-auto grid place-items-center rounded-full bg-emerald-500 text-white text-3xl shadow-card">✓</div>
+    <h2 class="font-display font-bold text-2xl mt-3">Order fired! 🔥</h2>
+    <p id="successTxt" class="text-[13px] opacity-60 mt-1 font-medium"></p>
+    <div class="flex items-center justify-center gap-1.5 mt-2"><span class="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600">● LIVE TRACKING</span><span id="sockState" class="text-[11px] font-bold opacity-50">connecting…</span></div>
+    <div id="timeline" class="mt-4 text-left"></div>
+    <button onclick="location.reload()" class="mt-5 w-full bg-espresso dark:bg-caramel text-cream font-extrabold py-3.5 rounded-2xl btn-press text-sm">Order more →</button>
+  </div>
+</div>
+
+<!-- My orders -->
+<div id="trackModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/60 backdrop-blur-sm fade-in">
+  <div class="bg-cream dark:bg-[#1D1613] rounded-[1.8rem] p-5 w-full max-w-sm pop max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center"><h2 class="font-display font-bold text-xl">📦 My orders</h2><button data-close class="w-8 h-8 grid place-items-center rounded-full bg-espresso/5 dark:bg-white/10">✕</button></div>
+    <div id="myOrders" class="mt-3 space-y-2.5 overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- Table picker -->
+<div id="tableModal" class="fixed inset-0 z-50 hidden items-center justify-center p-6 bg-black/60 backdrop-blur-sm fade-in">
+  <div class="bg-cream dark:bg-[#1D1613] rounded-[1.8rem] p-6 w-full max-w-xs text-center pop">
+    <h2 class="font-display font-bold text-lg">Pick your table 🪑</h2>
+    <p class="text-xs opacity-50 mt-0.5">Match the number on your table</p>
+    <div id="tableGrid" class="grid grid-cols-4 gap-2 mt-4"></div>
+  </div>
+</div>
+
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 hidden"><span id="toastTxt" class="block bg-espresso dark:bg-caramel text-cream text-xs font-bold px-4 py-2.5 rounded-full shadow-soft whitespace-nowrap"></span></div>
+
+<script>
+/* Storage that survives "blocked cookies/storage" browsers (falls back to memory) */
+const store = (() => { try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; } catch (e) { const m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; } }; } })();
+const params = new URLSearchParams(location.search);
+let TABLE = ((params.get('table') || store.getItem('cafe_table') || 'T1') + '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) || 'T1';
+store.setItem('cafe_table', TABLE);
+let MENU = [], cart = JSON.parse(store.getItem('cafe_cart') || '{}');
+let activeCat = 'All', vegOnly = false, dealsOnly = false, trackSockets = {};
+const $ = id => document.getElementById(id);
+const money = n => '₹' + n;
+const eff = m => { const off = Math.max(0, Math.min(90, Number(m.off) || 0)); return off > 0 ? Math.max(1, Math.round(m.price * (1 - off / 100))) : m.price; };
+const hasOff = m => (Number(m.off) || 0) > 0;
+/* Happy hour (public): guest always pays the better of item deal vs live happy hour */
+let HH = null;
+const hhApplies = m => HH && (!HH.categories.length || HH.categories.includes(m.category));
+const PX = m => { if (m.kind === 'meal') return m.price; const base = eff(m); if (hhApplies(m)) { const cand = Math.max(1, Math.round(m.price * (1 - Math.min(90, HH.pct) / 100))); if (cand < base) return cand; } return base; };
+const hhWon = m => m.kind !== 'meal' && hhApplies(m) && PX(m) < eff(m);
+async function loadHH(){
+  HH = await fetch('/api/happyhours/now').then(r => r.json()).catch(() => null);
+  const b = $('hhBanner');
+  if (HH) { b.classList.remove('hidden'); b.innerHTML = `<div class="text-[13px] font-extrabold">🎉 ${esc(HH.name)} is LIVE till ${esc(HH.end)}!</div><div class="text-[11px] opacity-80 font-semibold">Extra ${HH.pct}% off ${HH.categories && HH.categories.length ? esc(HH.categories.join(', ')) : 'the whole menu'} — auto-applied at checkout ✨</div>`; }
+  else b.classList.add('hidden');
+}
+const STEPS = ['pending','preparing','ready','served'];
+const STEP_LBL = { pending:['⏳','Received'], preparing:['👨‍🍳','In kitchen'], ready:['🔔','Ready!'], served:['✅','Served'] };
+const esc = s => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ── theme ── */
+function paintTheme(){ const dark = document.documentElement.classList.contains('dark'); $('themeBtn').textContent = dark ? '☀️' : '🌙'; }
+$('themeBtn').onclick = () => { const d = document.documentElement.classList.toggle('dark'); try { store.setItem('cafe_theme', d ? 'dark' : 'light'); } catch (e) {} paintTheme(); };
+paintTheme();
+
+/* ── toast / sheets ── */
+let toastT; function toast(msg){ $('toastTxt').textContent = msg; $('toast').classList.remove('hidden'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.add('hidden'), 2600); }
+/* Loud errors: NOTHING ever fails silently again — tap a button, see what happened */
+window.addEventListener('error', e => { try { toast('⚠️ ' + String(e.message || 'tap failed').slice(0, 110)); } catch (_) {} });
+/* Tap the KITCHEN LIVE pill any time for a full self-check */
+async function runDiag(){
+  const out = ['JS ✓'];
+  try { store.setItem('__d', '1'); store.removeItem('__d'); out.push('storage ✓'); } catch (e) { out.push('storage ✗ BLOCKED'); }
+  try { const r = await fetch('/api/info'); out.push(r.ok ? 'server ✓' : 'server ✗ ' + r.status); } catch (e) { out.push('server ✗ OFFLINE'); }
+  toast(out.join(' • '));
+}
+function openSheet(id){ $(id).classList.remove('hidden'); $(id).classList.add('flex'); if(id==='drawer'){ $('drawer').classList.remove('hidden'); } }
+function closeSheets(){ ['drawer','trackModal','tableModal'].forEach(id => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); }); $('overlay').classList.add('hidden'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = closeSheets);
+$('overlay').onclick = closeSheets;
+
+/* ── share + install (PWA) ── */
+$('shareBtn').onclick = async () => {
+  const url = location.origin + '/menu.html?table=' + TABLE;
+  if (navigator.share) { try { await navigator.share({ title: document.title, url }); } catch(e){} }
+  else { await navigator.clipboard.writeText(url).catch(()=>{}); toast('Menu link copied 📋'); }
+};
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('installBtn').classList.remove('hidden'); });
+$('installBtn').onclick = async () => { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; $('installBtn').classList.add('hidden'); } };
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+/* ── data ── */
+function skeletons(){ $('menuGrid').innerHTML = Array.from({length:4}).map(() => `<div class="rounded-3xl overflow-hidden bg-white dark:bg-[#211915] border border-espresso/10 dark:border-white/10"><div class="h-48 skeleton"></div><div class="p-4 space-y-2"><div class="h-4 rounded skeleton w-1/3"></div><div class="h-3 rounded skeleton w-1/4"></div></div></div>`).join(''); }
+skeletons();
+
+async function init() {
+  try {
+    const info = await fetch('/api/info').then(r => r.json());
+    $('cafeName').textContent = info.cafeName || 'Brew & Bean';
+    document.title = 'Menu — ' + $('cafeName').textContent;
+    const d = info.details || {};
+    $('cafeCardName').textContent = info.cafeName;
+    $('cafeCardBody').innerHTML = `${esc(d.address)}<br>🕒 ${esc(d.hours)}<br>📞 ${esc(d.phone)}`;
+    $('dirBtn').href = 'https://www.google.com/maps/search/' + encodeURIComponent(info.cafeName + ' ' + (d.address || ''));
+    $('callBtn').href = 'tel:' + (d.phone || '').replace(/\s/g, '');
+    buildTableGrid(info.tables || ['T1']);
+  } catch(e){ toast('Offline — showing saved menu 📴'); $('liveTxt').textContent = 'OFFLINE'; $('liveDot').className = 'w-1.5 h-1.5 rounded-full bg-red-500 inline-block'; }
+  try { MENU = await fetch('/api/menu').then(r => r.json()); }
+  catch(e){ MENU = []; $('menuGrid').innerHTML = '<p class="col-span-full text-center opacity-50 py-10">No connection 😔 — pull down to retry</p>'; return; }
+  renderCats(); renderMenu(); renderCart(); paintTable(); loadMyOrders(true);
+  $('liveTxt').textContent = 'KITCHEN LIVE'; $('liveDot').className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot inline-block';
+  await loadHH(); renderMenu(); // re-paint prices with live happy hour
+  setInterval(async () => { const before = JSON.stringify(HH); await loadHH(); if (JSON.stringify(HH) !== before) { renderMenu(); renderCart(); toast(HH ? `🎉 ${HH.name} just went LIVE!` : 'Happy hour ended'); } }, 60000);
+}
+$('waiterBtn').onclick = async () => {
+  const btn = $('waiterBtn'); btn.disabled = true; btn.textContent = '🔔 Calling…';
+  try {
+    const r = await fetch('/api/assistance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ table: TABLE }) });
+    const d = await r.json().catch(() => ({}));
+    toast(r.ok ? `🛎️ Waiter notified for Table ${TABLE}!` : '⏳ ' + (d.error || 'Already called'));
+  } catch(e){ toast('No connection 😔'); }
+  btn.disabled = false; btn.textContent = '🛎️ Waiter';
+};
+function paintTable(){ $('tableBadge').textContent = '🪑 ' + TABLE + ' ▾'; $('heroTable').textContent = 'TABLE ' + TABLE; }
+function buildTableGrid(tables) {
+  $('tableGrid').innerHTML = tables.map(t => `<button onclick="setTable('${t}')" class="py-2.5 rounded-2xl font-extrabold text-sm btn-press ${t===TABLE ? 'bg-espresso dark:bg-caramel text-cream shadow-card' : 'bg-espresso/5 dark:bg-white/10'}">${t}</button>`).join('');
+}
+function setTable(t){ TABLE = t; try { store.setItem('cafe_table', t); } catch (e) {} location.search = '?table=' + t; }
+$('tableBadge').onclick = () => { openSheet('tableModal'); };
+$('trackModal').addEventListener('click', e => { if (e.target.id === 'trackModal') closeSheets(); });
+$('tableModal').addEventListener('click', e => { if (e.target.id === 'tableModal') closeSheets(); });
+$('successModal').addEventListener('click', e => { if (e.target.id === 'successModal') closeSheets(); });
+
+$('search').oninput = e => { $('clearSearch').classList.toggle('hidden', !e.target.value); renderMenu(e.target.value); };
+$('clearSearch').onclick = () => { $('search').value = ''; $('clearSearch').classList.add('hidden'); renderMenu(''); };
+$('vegOnly').onclick = e => { vegOnly = !vegOnly; e.currentTarget.classList.toggle('!bg-emerald-600', vegOnly); e.currentTarget.classList.toggle('!text-white', vegOnly); e.currentTarget.classList.toggle('!border-emerald-600', vegOnly); renderMenu($('search').value); };
+$('dealsBtn').onclick = e => { dealsOnly = !dealsOnly; e.currentTarget.classList.toggle('!bg-caramel', dealsOnly); e.currentTarget.classList.toggle('!text-white', dealsOnly); e.currentTarget.classList.toggle('!border-caramel', dealsOnly); renderMenu($('search').value); };
+
+let CATLIST = ['All'];
+function renderCats(){
+  CATLIST = ['All', ...new Set(MENU.map(m => m.category))];
+  if (!CATLIST.includes(activeCat)) activeCat = 'All';
+  $('cats').innerHTML = CATLIST.map((c, i) => `<button onclick="setCat(${i})" class="whitespace-nowrap px-4 py-2 rounded-full text-xs font-extrabold border border-espresso/15 dark:border-white/15 bg-white dark:bg-[#211915] btn-press shrink-0 ${c===activeCat ? 'chip-active' : ''}">${c==='All' ? '✨ All' : c==='Meals' ? '🍱 Meals' : esc(c)}</button>`).join('');
+}
+function setCat(i){ activeCat = CATLIST[i] || 'All'; renderCats(); renderMenu($('search').value); }
+
+function renderMenu(q=''){
+  q = q.toLowerCase();
+  const list = MENU.filter(m => (activeCat==='All' || m.category===activeCat) && (!vegOnly || m.veg) && (!dealsOnly || hasOff(m) || hhWon(m) || (m.kind === 'meal' && (Number(m.mrp) || 0) > m.price)) && (!q || m.name.toLowerCase().includes(q) || (m.desc||'').toLowerCase().includes(q)));
+  if (dealsOnly && !list.length) { $('menuGrid').innerHTML = '<p class="col-span-full text-center opacity-40 py-10 text-sm">No live deals right now 🤍 — check back soon</p>'; return; }
+  $('menuGrid').innerHTML = list.map(m => {
+    const qty = cart[m.id]?.qty || 0;
+    const sold = m.available === false;
+    const isMeal = m.kind === 'meal';
+    const EP = isMeal ? m.price : PX(m);
+    const MRP = isMeal ? (Number(m.mrp) || m.price) : m.price;
+    const off = Math.round(Number(m.off) || 0), wonHH = hhWon(m), deal = (off > 0 || wonHH) && MRP > EP;
+    const packs = isMeal && Array.isArray(m.contains) ? m.contains : [];
+    return `<div class="rounded-3xl overflow-hidden bg-white dark:bg-[#211915] border ${deal && !sold ? 'border-caramel/60 ring-1 ring-caramel/40' : 'border-espresso/10 dark:border-white/10'} shadow-card pop ${sold ? 'opacity-55' : ''}">
+      <div class="relative"><img src="${esc(m.img)}" class="w-full h-48 sm:h-44 object-cover" loading="lazy" alt="${esc(m.name)}">
+        <div class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/50 to-transparent"></div>
+        <span class="absolute top-3 left-3 bg-white/95 text-[10px] font-extrabold px-2 py-1 rounded-full flex items-center gap-1">${isMeal ? '🍱 MEAL' : `<span class="w-2 h-2 rounded-full ${m.veg ? 'bg-emerald-600' : 'bg-red-600'}"></span>${m.veg ? 'VEG' : 'NON-VEG'}`}</span>
+        ${deal && !sold ? `<span class="absolute top-3 right-3 bg-gradient-to-r from-caramel to-caramel-dark text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-card">${wonHH ? `🎉 −${HH.pct}%` : isMeal ? 'SAVE ' + money(MRP - EP) : '🏷️ ' + off + '% OFF'}</span>` : ''}
+        ${sold ? `<span class="absolute top-3 right-3 bg-red-600 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full">${m.mealBlocked ? 'PAUSED' : 'SOLD OUT'}</span>` : ''}
+      </div>
+      <div class="p-4"><div class="font-extrabold text-[15px] leading-tight">${esc(m.name)}</div>
+        ${packs.length ? `<div class="text-[12px] font-bold text-caramel mt-1 leading-snug">🍱 ${packs.map(c => c.qty + '× ' + esc(c.name)).join(' + ')}</div>` : ''}
+        <div class="text-[12px] opacity-50 line-clamp-2 mt-0.5 leading-snug">${esc(m.desc)}</div>
+        <div class="flex items-center justify-between mt-3">${sold ? '<span class="text-[12px] font-bold opacity-40">Unavailable today</span>'
+          : `<span class="font-extrabold text-[17px] flex items-center gap-1.5">${money(EP)}${deal ? `<s class="opacity-35 text-[13px] font-bold">${money(MRP)}</s>` : ''}</span>`}
+          ${sold ? '' : qty === 0 ? `<button onclick="chQty('${m.id}',1)" class="font-extrabold text-[13px] px-7 py-2 rounded-xl border-[1.5px] border-caramel text-caramel btn-press shadow-sm">ADD ＋</button>`
+          : `<div class="flex items-center gap-3 bg-espresso dark:bg-caramel text-cream rounded-xl px-1.5 py-1"><button onclick="chQty('${m.id}',-1)" class="w-8 h-8 grid place-items-center font-extrabold text-lg btn-press">−</button><span class="text-sm font-extrabold min-w-[1rem] text-center">${qty}</span><button onclick="chQty('${m.id}',1)" class="w-8 h-8 grid place-items-center font-extrabold text-lg btn-press">＋</button></div>`}
+        </div>
+      </div></div>`;
+  }).join('') || '<p class="col-span-full text-center opacity-40 py-10 text-sm">Nothing matches 😔 — try another search</p>';
+}
+function chQty(id, d){
+  const m = MENU.find(x => x.id === id);
+  const nq = (cart[id]?.qty || 0) + d;
+  if (nq <= 0) delete cart[id]; else cart[id] = { qty: nq, price: (m.kind === 'meal' ? m.price : PX(m)), mrp: (m.kind === 'meal' ? (Number(m.mrp) || m.price) : m.price), name: (m.kind === 'meal' ? '🍱 ' : '') + m.name };
+  try { store.setItem('cafe_cart', JSON.stringify(cart)); } catch (e) {}
+  renderMenu($('search').value); renderCart(true);
+}
+const cartCount = () => Object.values(cart).reduce((s,i) => s + i.qty, 0);
+const cartTotal = () => Object.values(cart).reduce((s,i) => s + i.qty * i.price, 0);
+function renderCart(bounce){
+  const n = cartCount();
+  $('cartBtn').classList.toggle('hidden', n === 0);
+  if (n > 0) { $('cartBubble').textContent = n; $('cartInfo').textContent = `${n} item${n>1?'s':''} • Table ${TABLE}`; $('cartTotalMini').textContent = money(cartTotal()); $('cartTotal').textContent = money(cartTotal()); }
+  if (bounce) { $('cartBtn').classList.remove('cart-bounce'); void $('cartBtn').offsetWidth; $('cartBtn').classList.add('cart-bounce'); }
+  $('cartItems').innerHTML = Object.entries(cart).map(([id,i]) => `<div class="flex justify-between items-center bg-white dark:bg-[#251D19] border border-espresso/10 dark:border-white/10 rounded-2xl p-3"><div class="min-w-0"><div class="font-extrabold text-[13px] truncate">${esc(i.name)}</div><div class="text-[11px] opacity-50">${money(i.price)} each${i.mrp > i.price ? ` <s>${money(i.mrp)}</s> <span class="text-emerald-600 font-extrabold">SAVE ${money((i.mrp - i.price) * i.qty)}</span>` : ''} • ${money(i.price*i.qty)}</div></div><div class="flex items-center gap-2 shrink-0"><button onclick="chQty('${id}',-1)" class="w-7 h-7 rounded-full bg-espresso/5 dark:bg-white/10 font-extrabold btn-press">−</button><span class="font-extrabold text-sm w-4 text-center">${i.qty}</span><button onclick="chQty('${id}',1)" class="w-7 h-7 rounded-full bg-espresso dark:bg-caramel text-cream font-extrabold btn-press">＋</button></div></div>`).join('') || '<p class="text-[13px] opacity-40 text-center py-4">Cart is empty — add something tasty 👆</p>';
+  const saveTot = Object.values(cart).reduce((s,i) => s + ((i.mrp || i.price) - i.price) * i.qty, 0);
+  if (saveTot > 0) $('cartItems').innerHTML += `<div class="text-center text-[12px] font-extrabold text-emerald-600 bg-emerald-500/10 rounded-2xl py-2">🎉 You're saving ${money(saveTot)} on this order!</div>`;
+}
+$('cartBtn').onclick = () => { renderCart(); $('overlay').classList.remove('hidden'); openSheet('drawer'); };
+
+/* ── timeline ── */
+function timelineHTML(status){
+  const idx = status === 'cancelled' ? -1 : STEPS.indexOf(status);
+  return STEPS.map((s, i) => {
+    const done = idx >= 0 && i <= idx, cur = s === status;
+    const [em, lbl] = STEP_LBL[s];
+    return `<div class="flex gap-3">${'<div class="flex flex-col items-center"><div class="w-9 h-9 grid place-items-center rounded-full text-base ' + (done ? 'bg-emerald-500 text-white shadow-card' : 'bg-espresso/10 dark:bg-white/10 opacity-50') + (cur ? ' ring-4 ring-emerald-500/25' : '') + '">' + em + '</div>' + (i < 3 ? '<div class="w-0.5 flex-1 ' + (idx > i ? 'bg-emerald-500' : 'bg-espresso/10 dark:bg-white/10') + ' min-h-[14px]"></div>' : '') + '</div>'}<div class="pb-4"><div class="text-[13px] font-extrabold ${done ? '' : 'opacity-40'}">${lbl}</div><div class="text-[11px] opacity-50">${cur ? '● Happening now' : done ? 'Done' : 'Waiting'}</div></div></div>`;
+  }).join('') + (status === 'cancelled' ? '<div class="text-[13px] font-extrabold text-red-500">❌ Cancelled — please reorder or ask staff</div>' : '');
+}
+
+/* ── live status via socket room + polling fallback ── */
+/* Each order has a secret receipt token (uuid) — only this device can track it */
+const getMine = () => { try { const v = JSON.parse(store.getItem('my_orders') || '[]'); return Array.isArray(v) ? v : []; } catch(e){ return []; } };
+const saveMine = l => { try { store.setItem('my_orders', JSON.stringify(l.slice(0, 10))); } catch (e) {} };
+const orderKey = id => { const e = getMine().find(x => (x && x.id) === id || x === id); return (e && e.t) || null; };
+async function fetchMine(id){
+  const t = orderKey(id);
+  const r = await fetch('/api/orders/' + id + (t ? '?t=' + encodeURIComponent(t) : ''));
+  if (r.status === 403) return { expired: true, id };
+  return r.ok ? r.json() : null;
+}
+function watchOrder(id, onUpdate){
+  try {
+    if (trackSockets[id]) trackSockets[id].disconnect();
+    const s = io({ auth: { watchOrder: id, watchToken: orderKey(id) } });
+    trackSockets[id] = s;
+    s.on('connect', () => { const el = $('sockState'); if (el) el.textContent = '● live'; });
+    s.on('order-status', o => onUpdate(o));
+  } catch(e){}
+}
+function pollStatus(id, onUpdate, terminal){
+  (async function loop(){
+    try { const o = await fetchMine(id); if (o) { if (o.expired) { toast('Order opens only on the device that placed it'); return; } onUpdate(o); if (terminal(o)) return; } } catch(e){}
+    setTimeout(loop, 5000);
+  })();
+}
+const isTerminal = o => ['served','cancelled'].includes(o.status);
+
+$('placeOrder').onclick = async () => {
+  const items = Object.entries(cart).map(([id,i]) => ({ id, qty: i.qty }));
+  if (!items.length) return toast('Cart is empty 🧺');
+  const btn = $('placeOrder'); btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span><span id="placeLbl">Firing to kitchen…</span>';
+  try {
+    const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ table: TABLE, items, customerName: $('custName').value || 'Guest', note: $('orderNote').value }) }).then(r => r.json());
+    if (order.error) throw new Error(order.error);
+    cart = {}; try { store.setItem('cafe_cart', '{}'); } catch (e) {} renderCart();
+    const mine = getMine().filter(x => (x && x.id) !== order.id && x !== order.id); mine.unshift({ id: order.id, t: order.uuid }); saveMine(mine);
+    $('successTxt').textContent = `${order.id} • Table ${order.table} • ${money(order.total)}` + (order.saved > 0 ? ` • 🎉 saved ${money(order.saved)}` : '');
+    const paint = o => { $('timeline').innerHTML = timelineHTML(o.status); loadMyOrders(); };
+    paint(order);
+    closeSheets(); $('successModal').classList.remove('hidden'); $('successModal').classList.add('flex');
+    watchOrder(order.id, paint);
+    pollStatus(order.id, paint, isTerminal);
+  } catch(e){ toast('Failed: ' + e.message); }
+  btn.disabled = false; btn.innerHTML = '<span id="placeLbl">Place order • Table ' + TABLE + '</span>';
+};
+
+async function loadMyOrders(first){
+  const ids = getMine().map(x => (x && x.id) || x).filter(Boolean);
+  const badge = $('myCount');
+  badge.textContent = ids.length; badge.classList.toggle('hidden', !ids.length);
+  if (!ids.length) { $('myOrders').innerHTML = '<p class="text-[13px] opacity-40 text-center py-4">No orders yet — add something tasty 👆</p>'; return; }
+  const rows = await Promise.all(ids.map(id => fetchMine(id).catch(() => null)));
+  const live = rows.filter(o => o && !o.expired);
+  $('myOrders').innerHTML = live.map(o => {
+    const pct = o.status === 'cancelled' ? 0 : (STEPS.indexOf(o.status) + 1) / 4 * 100;
+    const col = o.status === 'cancelled' ? 'bg-red-500' : o.status === 'served' ? 'bg-emerald-500' : 'bg-caramel';
+    return `<div class="bg-white dark:bg-[#251D19] border border-espresso/10 dark:border-white/10 rounded-2xl p-3.5">
+      <div class="flex justify-between items-center"><span class="font-extrabold text-[13px]">${esc(o.id)} • 🪑 ${esc(o.table)}</span><span class="font-extrabold text-[13px]">${money(o.total)}${o.saved > 0 ? ` <span class="text-[10px] text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">−${money(o.saved)}</span>` : ''}</span></div>
+      <div class="text-[11px] opacity-50 mt-0.5">${o.items.map(i => i.qty + '× ' + esc(i.name) + ((i.mrp || 0) > i.price ? ` <s>${money(i.mrp)}</s>` : '')).join(', ')}</div>
+      <div class="h-1.5 rounded-full bg-espresso/10 dark:bg-white/10 mt-2.5 overflow-hidden"><div class="h-full rounded-full ${col} transition-all" style="width:${pct}%"></div></div>
+      <div class="mt-1.5 text-[11px] font-extrabold ${o.status==='cancelled' ? 'text-red-500' : 'text-caramel'}">${(STEP_LBL[o.status]||['•',o.status])[0]} ${esc(o.status).toUpperCase()}</div>
+    </div>`;
+  }).join('');
+  if (!first) live.filter(o => !isTerminal(o)).forEach(o => { watchOrder(o.id, loadMyOrders); pollStatus(o.id, loadMyOrders, isTerminal); });
+  else live.filter(o => !isTerminal(o)).forEach(o => { watchOrder(o.id, () => loadMyOrders()); pollStatus(o.id, () => loadMyOrders(), isTerminal); });
+}
+init();
+</script>
+</body>
+</html>

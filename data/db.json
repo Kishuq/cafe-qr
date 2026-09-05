@@ -1,0 +1,284 @@
+{
+  "cafeName": "Brew & Bean Cafe",
+  "tables": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5",
+    "T6",
+    "T7",
+    "T8",
+    "T9"
+  ],
+  "menu": [
+    {
+      "id": "c1",
+      "name": "Espresso",
+      "category": "Coffee",
+      "price": 99,
+      "desc": "Bold single-origin shot, rich crema.",
+      "img": "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 10
+    },
+    {
+      "id": "c2",
+      "name": "Cappuccino",
+      "category": "Coffee",
+      "price": 149,
+      "desc": "Double shot, steamed milk, thick foam.",
+      "img": "https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 10
+    },
+    {
+      "id": "c3",
+      "name": "Cafe Latte",
+      "category": "Coffee",
+      "price": 159,
+      "desc": "Silky milk, mellow espresso, latte art.",
+      "img": "https://images.unsplash.com/photo-1561047029-3000c68339ca?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 10
+    },
+    {
+      "id": "c4",
+      "name": "Cold Brew",
+      "category": "Coffee",
+      "price": 179,
+      "desc": "18-hr slow steep, served over ice.",
+      "img": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 10
+    },
+    {
+      "id": "c5",
+      "name": "Mocha Frappe",
+      "category": "Coffee",
+      "price": 199,
+      "desc": "Chocolate + espresso blended with ice.",
+      "img": "https://images.unsplash.com/photo-1577968897966-3d4325b36b61?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 40
+    },
+    {
+      "id": "b1",
+      "name": "Masala Chai",
+      "category": "Tea & More",
+      "price": 79,
+      "desc": "Assam tea, ginger, cardamom, milk.",
+      "img": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 0
+    },
+    {
+      "id": "b2",
+      "name": "Fresh Lime Cooler",
+      "category": "Tea & More",
+      "price": 99,
+      "desc": "Mint, lime, soda — super refreshing.",
+      "img": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 0
+    },
+    {
+      "id": "f1",
+      "name": "Veg Club Sandwich",
+      "category": "Fast Bites",
+      "price": 149,
+      "desc": "Triple layer, mint mayo, fries side.",
+      "img": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 0
+    },
+    {
+      "id": "f2",
+      "name": "Peri Peri Fries",
+      "category": "Fast Bites",
+      "price": 129,
+      "desc": "Crispy fries dusted with peri peri.",
+      "img": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 0
+    },
+    {
+      "id": "f3",
+      "name": "Chicken Pesto Pasta",
+      "category": "Fast Bites",
+      "price": 249,
+      "desc": "Creamy pesto, grilled chicken, parmesan.",
+      "img": "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&q=80",
+      "available": true,
+      "veg": false,
+      "off": 0
+    },
+    {
+      "id": "d1",
+      "name": "Chocolate Truffle Cake",
+      "category": "Desserts",
+      "price": 169,
+      "desc": "Dark ganache, moist sponge slice.",
+      "img": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 0
+    },
+    {
+      "id": "d2",
+      "name": "Blueberry Cheesecake",
+      "category": "Desserts",
+      "price": 199,
+      "desc": "Baked cheesecake, berry compote.",
+      "img": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "off": 15
+    },
+    {
+      "id": "meal399695d4",
+      "kind": "meal",
+      "name": "Morning Fuel Combo",
+      "category": "Meals",
+      "price": 199,
+      "off": 0,
+      "desc": "Espresso + Veg Club Sandwich — the perfect start.",
+      "img": "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?w=600&q=80",
+      "available": true,
+      "veg": true,
+      "contains": [
+        {
+          "id": "c1",
+          "qty": 1
+        },
+        {
+          "id": "f1",
+          "qty": 1
+        }
+      ]
+    }
+  ],
+  "orders": [
+    {
+      "id": "ORD-107",
+      "uuid": "16bfc30f-9e3a-423d-828b-1d3b60136b49",
+      "table": "T1",
+      "customerName": "Guest",
+      "note": "",
+      "items": [
+        {
+          "id": "c5",
+          "name": "Mocha Frappe",
+          "price": 159,
+          "mrp": 199,
+          "off": 20,
+          "qty": 1,
+          "note": ""
+        }
+      ],
+      "total": 159,
+      "saved": 40,
+      "status": "served",
+      "createdAt": "2026-09-05T10:51:17.281Z",
+      "updatedAt": "2026-09-05T10:52:23.551Z"
+    },
+    {
+      "id": "ORD-106",
+      "uuid": "6f0a3064-80a1-4dc8-af97-ac5711e6d8f9",
+      "table": "T1",
+      "customerName": "Krishna",
+      "note": "",
+      "items": [
+        {
+          "id": "c1",
+          "name": "Espresso",
+          "price": 99,
+          "mrp": 99,
+          "off": 0,
+          "qty": 1,
+          "note": ""
+        },
+        {
+          "id": "c2",
+          "name": "Cappuccino",
+          "price": 149,
+          "mrp": 149,
+          "off": 0,
+          "qty": 1,
+          "note": ""
+        }
+      ],
+      "total": 248,
+      "saved": 0,
+      "status": "served",
+      "createdAt": "2026-09-05T10:50:22.583Z",
+      "updatedAt": "2026-09-05T10:52:21.021Z"
+    },
+    {
+      "id": "ORD-103",
+      "uuid": "29e79ada-3ee5-4292-af6f-f98062262343",
+      "table": "T1",
+      "customerName": "Guest",
+      "note": "",
+      "items": [
+        {
+          "id": "c1",
+          "name": "Espresso",
+          "price": 99,
+          "qty": 1,
+          "note": ""
+        },
+        {
+          "id": "c2",
+          "name": "Cappuccino",
+          "price": 149,
+          "qty": 1,
+          "note": ""
+        }
+      ],
+      "total": 248,
+      "status": "served",
+      "createdAt": "2026-09-05T10:04:53.674Z",
+      "updatedAt": "2026-09-05T10:44:19.873Z"
+    }
+  ],
+  "seq": 114,
+  "adminPin": "1234",
+  "cafeDetails": {
+    "address": "MG Road, Near City Mall",
+    "hours": "9 AM – 11 PM, all days",
+    "phone": "+91 98765 43210"
+  },
+  "dealsSeeded": true,
+  "mealsSeeded": true,
+  "happyHours": [
+    {
+      "id": "hhb35328c8",
+      "name": "Evening Brews",
+      "pct": 15,
+      "categories": [
+        "Coffee"
+      ],
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "start": "16:00",
+      "end": "19:00",
+      "active": false
+    }
+  ],
+  "hhSeeded": true
+}

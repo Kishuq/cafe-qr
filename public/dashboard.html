@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Studio — Cafe QR Orders</title>
+<meta name="theme-color" content="#1C1410">
+<link rel="icon" href="/icons/icon-192.svg" type="image/svg+xml">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { display: ['Fraunces','serif'], sans: ['"Plus Jakarta Sans"','system-ui','sans-serif'] },
+  colors: { espresso: '#1C1410', cream: '#FAF7F2', caramel: { DEFAULT: '#C2571B', dark: '#9A4213', light: '#F5E0CE' } },
+  boxShadow: { soft: '0 10px 40px -12px rgba(28,20,16,.25)', card: '0 4px 20px -6px rgba(28,20,16,.15)' }
+}}};
+</script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+  .font-display{font-family:'Fraunces',serif}
+  .no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{scrollbar-width:none}
+  @keyframes slideIn{from{transform:translateY(-14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .new-card{animation:slideIn .4s cubic-bezier(.2,.9,.3,1.15)}
+  @keyframes ringPulse{0%{box-shadow:0 0 0 0 rgba(194,87,27,.5)}100%{box-shadow:0 0 0 12px rgba(194,87,27,0)}}
+  .urgent{animation:ringPulse 1.4s infinite}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .fade-in{animation:fadeIn .25s ease}
+  @keyframes pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+  .pop{animation:pop .3s cubic-bezier(.2,.9,.3,1.2)}
+  .nav-active{background:#fff!important;color:#1C1410!important;box-shadow:0 4px 20px -6px rgba(0,0,0,.4)}
+  .btn-press:active{transform:scale(.96)}
+  .pin-dot{transition:all .15s}
+  @media print{body *{visibility:hidden}#printZone,#printZone *{visibility:visible}#printZone{position:absolute;inset:0}#screenUI{display:none!important}}
+</style>
+</head>
+<body class="bg-cream text-espresso min-h-screen">
+<noscript><div style="background:#b91c1c;color:#fff;font-weight:800;text-align:center;padding:14px;font-family:sans-serif">⚠️ JavaScript is BLOCKED in this browser — the dashboard can't work. Enable JavaScript (or tap the 🦁 Brave icon → Shields Down for this site) and reload.</div></noscript>
+
+<!-- ═══ PIN GATE ═══ -->
+<div id="loginGate" class="fixed inset-0 z-50 grid place-items-center p-4 bg-espresso fade-in overflow-y-auto">
+  <div class="w-full max-w-3xl grid md:grid-cols-2 rounded-[2rem] overflow-hidden shadow-soft pop my-4">
+    <div class="hidden md:flex flex-col justify-between p-8 bg-gradient-to-br from-caramel via-[#8A3A10] to-espresso text-cream">
+      <div><div class="text-4xl">☕</div><div class="font-display font-bold text-3xl mt-3 leading-tight">Owner<br>Studio.</div>
+      <p class="text-sm text-cream/70 mt-2">Every order, every table, live — in one calm place.</p></div>
+      <div class="text-[11px] text-cream/60 font-semibold">🔒 Customers only ever see the menu.<br>This space is yours.</div>
+    </div>
+    <div class="bg-cream p-8 text-center">
+      <div class="md:hidden text-4xl">🔐</div>
+      <h1 class="font-display font-bold text-2xl mt-1">Enter PIN</h1>
+      <div id="pinDots" class="flex justify-center gap-2.5 mt-4"></div>
+      <div id="pinPad" class="grid grid-cols-3 gap-2 mt-5 max-w-[240px] mx-auto"></div>
+      <p id="pinErr" class="text-xs font-bold text-red-600 mt-3 hidden">Wrong PIN — try again</p>
+      <p class="text-[11px] opacity-40 mt-3">Default PIN <b>1234</b> • change it in the Cafe tab</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP SHELL ═══ -->
+<div id="screenUI" class="md:flex min-h-screen">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex flex-col w-60 shrink-0 bg-espresso text-cream p-5 sticky top-0 h-screen">
+    <div class="flex items-center gap-2.5"><button onclick="runDiag()" title="Tap for self-check" class="btn-press"><div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-caramel to-[#7A2E0E] grid place-items-center text-xl">☕</div></button>
+      <div><div id="cafeLblSide" class="font-display font-bold leading-none">Brew & Bean</div><div class="text-[10px] tracking-[.18em] text-caramel-light/70 font-bold mt-1 flex items-center gap-1"><span id="dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span><span id="connLbl">LIVE</span></div></div></div>
+    <nav class="mt-8 space-y-1.5 text-sm font-bold">
+      <button data-tab="orders" class="navBtn nav-active w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">🧾 <span class="ml-1">Orders</span> <span id="navBadge" class="hidden ml-1 text-[10px] bg-caramel px-2 py-0.5 rounded-full">0</span></button>
+      <button data-tab="history" class="navBtn w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">📚 <span class="ml-1">History</span></button>
+      <button data-tab="menu" class="navBtn w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">🍽️ <span class="ml-1">Menu</span></button>
+      <button data-tab="meals" class="navBtn w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">🍱 <span class="ml-1">Meals</span></button>
+      <button data-tab="qr" class="navBtn w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">🏷️ <span class="ml-1">Tables & QR</span></button>
+      <button data-tab="cafe" class="navBtn w-full text-left px-4 py-3 rounded-2xl text-cream/70 hover:bg-white/10 btn-press">⚙️ <span class="ml-1">Cafe settings</span></button>
+    </nav>
+    <div class="mt-auto space-y-2">
+      <a href="/menu.html?table=T1" target="_blank" class="block text-center text-xs font-extrabold bg-caramel rounded-2xl py-2.5 btn-press">📱 Preview menu</a>
+      <button onclick="logout()" class="w-full text-xs font-bold border border-white/20 rounded-2xl py-2.5 btn-press">Logout</button>
+    </div>
+  </aside>
+
+  <div class="flex-1 min-w-0">
+    <!-- Topbar -->
+    <header class="sticky top-0 z-30 bg-cream/85 backdrop-blur border-b border-espresso/10">
+      <div class="px-4 md:px-8 py-3.5 flex items-center justify-between gap-2">
+        <div class="md:hidden flex items-center gap-2"><div class="w-9 h-9 rounded-xl bg-espresso grid place-items-center text-lg text-cream">☕</div><div id="cafeLbl" class="font-display font-bold">Brew & Bean</div></div>
+        <div class="hidden md:block"><h1 id="pageTitle" class="font-display font-bold text-2xl">Live orders</h1><p class="text-xs opacity-50 font-semibold"><span id="clock"></span> • all tables at a glance</p></div>
+        <div class="flex items-center gap-1.5">
+          <button id="notifBtn" title="Desktop notifications" class="text-xs font-extrabold px-3 py-2 rounded-full bg-espresso/5 btn-press">🔕 Alerts</button>
+          <button id="soundBtn" class="text-xs font-extrabold px-3 py-2 rounded-full bg-espresso/5 btn-press">🔔 Sound</button>
+          <button onclick="logout()" class="md:hidden text-xs font-extrabold px-3 py-2 rounded-full bg-espresso/5 btn-press">Logout</button>
+        </div>
+      </div>
+      <!-- Mobile tabs -->
+      <div class="md:hidden flex gap-1.5 px-4 pb-3 overflow-x-auto no-scrollbar">
+        <button data-tab="orders" class="navBtn nav-active whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">🧾 Orders</button>
+        <button data-tab="history" class="navBtn whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">📚 History</button>
+        <button data-tab="menu" class="navBtn whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">🍽️ Menu</button>
+        <button data-tab="meals" class="navBtn whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">🍱 Meals</button>
+        <button data-tab="qr" class="navBtn whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">🏷️ QR</button>
+        <button data-tab="cafe" class="navBtn whitespace-nowrap px-4 py-2 rounded-full bg-espresso/5 text-xs font-extrabold">⚙️ Cafe</button>
+      </div>
+    </header>
+
+    <main class="px-4 md:px-8 py-5 pb-24 md:pb-10 max-w-6xl">
+      <div id="pinWarn" class="hidden mb-3 rounded-3xl bg-red-600 text-white shadow-card p-4 text-sm font-bold">⚠️ You're still using the default PIN <b>1234</b> — anyone could guess it. Change it now in ⚙️ Cafe settings → New owner PIN → Save.</div>
+      <!-- Stats -->
+      <div id="stats" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+      <div class="bg-white rounded-3xl border shadow-card p-5 mt-3">
+        <div class="flex justify-between items-center"><h3 class="font-extrabold text-sm">📊 Today's order rhythm</h3><span class="text-[11px] font-bold opacity-40">hourly</span></div>
+        <div id="hourChart" class="flex items-end gap-1 h-24 mt-3"></div>
+      </div>
+
+      <!-- ORDERS -->
+      <section id="tab-orders" class="mt-5">
+        <div id="assistBar" class="hidden mb-3 rounded-3xl bg-gradient-to-r from-red-600 to-caramel text-white shadow-card p-4"></div>
+        <div class="flex gap-2 flex-wrap" id="statusFilters"></div>
+        <div id="kanban" class="grid md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3 items-start"></div>
+      </section>
+
+      <!-- HISTORY -->
+      <section id="tab-history" class="mt-5 hidden">
+        <div class="flex justify-between items-center flex-wrap gap-2">
+          <h2 class="font-display font-bold text-xl">Order history 📚</h2>
+          <button onclick="exportCSV()" class="bg-espresso text-cream text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">⬇ Export CSV</button>
+        </div>
+        <div class="bg-white rounded-3xl border shadow-card p-4 mt-3 space-y-2.5">
+          <div class="flex gap-1.5 flex-wrap" id="histPresets"></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <label class="text-[10px] font-extrabold opacity-50">FROM<input id="histFrom" type="date" class="mt-1 w-full border rounded-xl px-3 py-2 text-xs font-bold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+            <label class="text-[10px] font-extrabold opacity-50">TO<input id="histTo" type="date" class="mt-1 w-full border rounded-xl px-3 py-2 text-xs font-bold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+            <label class="text-[10px] font-extrabold opacity-50">STATUS<select id="histStatus" class="mt-1 w-full border rounded-xl px-3 py-2 text-xs font-bold text-espresso outline-none focus:ring-2 ring-caramel"><option value="all">All statuses</option><option>pending</option><option>preparing</option><option>ready</option><option>served</option><option>cancelled</option></select></label>
+            <label class="text-[10px] font-extrabold opacity-50">SEARCH<input id="histQ" placeholder="ORD-101, T4, name, dish…" class="mt-1 w-full border rounded-xl px-3 py-2 text-xs font-semibold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+          </div>
+        </div>
+        <div id="histSummary" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3"></div>
+        <div id="histList" class="mt-3 space-y-4"></div>
+        <button id="histMore" onclick="histLimit+=60;renderHistory();" class="hidden w-full mt-3 text-xs font-extrabold bg-white border rounded-full py-3 btn-press">Show more ↓</button>
+      </section>
+
+      <!-- MENU -->
+      <section id="tab-menu" class="mt-5 hidden">
+        <div class="flex justify-between items-center flex-wrap gap-2">
+          <h2 class="font-display font-bold text-xl">Menu studio 🍽️</h2>
+          <button onclick="openItemModal()" class="bg-espresso text-cream text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">＋ Add dish</button>
+        </div>
+        <div class="bg-gradient-to-br from-caramel via-[#8A3A10] to-espresso text-cream rounded-3xl shadow-card p-5 mt-3">
+          <div class="flex justify-between items-center flex-wrap gap-2">
+            <h3 class="font-extrabold text-sm">🏷️ Offers manager <span class="opacity-60 font-bold">— tap − / ＋ to change a deal live</span></h3>
+            <span id="offerCount" class="text-[10px] font-extrabold bg-white/20 px-2.5 py-1 rounded-full"></span>
+          </div>
+          <div id="offerList" class="grid sm:grid-cols-2 gap-2 mt-3"></div>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <select id="offerDish" class="flex-1 min-w-[160px] bg-white/95 text-espresso text-xs font-bold rounded-full px-4 py-2.5 outline-none"></select>
+            <select id="offerPct" class="bg-white/95 text-espresso text-xs font-bold rounded-full px-3 py-2.5 outline-none">
+              <option value="5">5% off</option><option value="10" selected>10% off</option><option value="15">15% off</option><option value="20">20% off</option><option value="25">25% off</option><option value="30">30% off</option><option value="50">50% off</option>
+            </select>
+            <button onclick="addOffer()" class="bg-cream text-espresso text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">＋ Put on offer</button>
+          </div>
+        </div>
+        <div id="menuTable" class="grid sm:grid-cols-2 gap-3 mt-3"></div>
+        <!-- Happy hours live inside the Menu tab -->
+        <div class="bg-espresso text-cream rounded-3xl shadow-card p-5 mt-4">
+          <div class="flex justify-between items-center flex-wrap gap-2">
+            <div><h2 class="font-extrabold text-sm">⏰ Happy Hours <span class="opacity-60 font-bold">— auto deals on the clock</span></h2>
+            <p class="text-[11px] opacity-60 font-semibold">Guests always get the better of item deal vs happy hour. Nothing stacks wrongly.</p></div>
+            <span id="hhLiveBadge" class="text-[10px] font-extrabold bg-emerald-500 px-2.5 py-1 rounded-full hidden">● LIVE NOW</span>
+          </div>
+          <div id="hhList" class="grid sm:grid-cols-2 gap-2 mt-3"></div>
+          <div class="grid md:grid-cols-2 gap-2 mt-3 bg-white/10 rounded-2xl p-3">
+            <input id="hh_name" placeholder="Name — e.g. Evening Brews" class="bg-white/95 text-espresso text-xs font-bold rounded-xl px-3 py-2.5 outline-none">
+            <div class="grid grid-cols-3 gap-2">
+              <select id="hh_pct" class="bg-white/95 text-espresso text-xs font-bold rounded-xl px-2 py-2.5 outline-none"><option value="10">10%</option><option value="15" selected>15%</option><option value="20">20%</option><option value="25">25%</option><option value="30">30%</option><option value="50">50%</option></select>
+              <select id="hh_cat" class="bg-white/95 text-espresso text-xs font-bold rounded-xl px-2 py-2.5 outline-none"></select>
+              <div class="flex gap-2"><input id="hh_start" type="time" value="16:00" class="w-full bg-white/95 text-espresso text-xs font-bold rounded-xl px-2 py-2.5 outline-none"><input id="hh_end" type="time" value="19:00" class="w-full bg-white/95 text-espresso text-xs font-bold rounded-xl px-2 py-2.5 outline-none"></div>
+            </div>
+            <div id="hh_days" class="flex gap-1 flex-wrap md:col-span-2"></div>
+            <button onclick="saveHH()" class="bg-caramel text-white text-xs font-extrabold px-4 py-2.5 rounded-xl btn-press md:col-span-2">＋ Schedule happy hour</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- MEALS -->
+      <section id="tab-meals" class="mt-5 hidden">
+        <div class="flex justify-between items-center flex-wrap gap-2">
+          <div><h2 class="font-display font-bold text-xl">Combo meals 🍱</h2>
+          <p class="text-[11px] font-semibold opacity-50">Bundle dishes at one price — guests see the savings automatically.</p></div>
+          <button onclick="openMealModal()" class="bg-espresso text-cream text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">＋ Build a meal</button>
+        </div>
+        <div id="mealGrid" class="grid sm:grid-cols-2 gap-3 mt-3"></div>
+      </section>
+
+      <!-- QR -->
+      <section id="tab-qr" class="mt-5 hidden">
+        <div class="flex flex-wrap gap-2 items-center">
+          <input id="newTable" placeholder="New table — e.g. T9" class="border rounded-full px-4 py-2.5 text-sm uppercase bg-white font-bold w-48 outline-none focus:ring-2 ring-caramel">
+          <button onclick="addTable()" class="bg-espresso text-cream text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">＋ Add table</button>
+          <button onclick="printAll()" class="bg-caramel text-white text-xs font-extrabold px-4 py-2.5 rounded-full btn-press">🖨️ Print all</button>
+        </div>
+        <div id="printZone"><div id="qrGrid" class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3"></div></div>
+        <p class="text-[11px] opacity-40 mt-3 font-semibold">QRs open the <b>menu only</b> (<code id="urlSample"></code>) — customers never see this studio.</p>
+      </section>
+
+      <!-- CAFE -->
+      <section id="tab-cafe" class="mt-5 hidden">
+        <h2 class="font-display font-bold text-xl">Cafe settings ⚙️</h2>
+        <div class="bg-white rounded-3xl border shadow-card p-5 mt-3 grid md:grid-cols-2 gap-2.5">
+          <label class="text-xs font-extrabold opacity-60">CAFE NAME<input id="cafeNameInp" class="mt-1 w-full border rounded-2xl px-4 py-2.5 text-sm font-semibold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+          <label class="text-xs font-extrabold opacity-60">PHONE<input id="cafePhone" class="mt-1 w-full border rounded-2xl px-4 py-2.5 text-sm font-semibold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+          <label class="text-xs font-extrabold opacity-60">ADDRESS<input id="cafeAddr" class="mt-1 w-full border rounded-2xl px-4 py-2.5 text-sm font-semibold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+          <label class="text-xs font-extrabold opacity-60">HOURS<input id="cafeHours" class="mt-1 w-full border rounded-2xl px-4 py-2.5 text-sm font-semibold text-espresso outline-none focus:ring-2 ring-caramel"></label>
+          <label class="text-xs font-extrabold opacity-60">NEW OWNER PIN (min 4 chars)<input id="newPin" class="mt-1 w-full border rounded-2xl px-4 py-2.5 text-sm font-semibold text-espresso outline-none focus:ring-2 ring-caramel" placeholder="Leave blank to keep"></label>
+          <button onclick="saveCafe()" class="bg-espresso text-cream text-sm font-extrabold px-4 py-3 rounded-2xl btn-press md:col-span-2">💾 Save everything</button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Meal builder modal -->
+<div id="mealModal" class="fixed inset-0 bg-black/55 backdrop-blur-[2px] hidden z-50 items-center justify-center p-4 fade-in">
+  <div class="bg-cream rounded-[1.8rem] p-6 w-full max-w-md pop max-h-[90vh] overflow-y-auto">
+    <h2 id="mealTitle" class="font-display font-bold text-xl">Build a meal 🍱</h2>
+    <div class="grid gap-2.5 mt-4">
+      <input id="mm_name" placeholder="Meal name * — e.g. Burger Blast Combo" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+      <div class="grid grid-cols-2 gap-2.5">
+        <input id="mm_price" type="number" placeholder="Combo price ₹ *" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+        <input id="mm_img" placeholder="Photo URL (optional)" class="border rounded-2xl px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 ring-caramel">
+      </div>
+      <textarea id="mm_desc" placeholder="Short line — e.g. Burger + fries + cold drink" rows="2" class="border rounded-2xl px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 ring-caramel"></textarea>
+      <div class="text-xs font-extrabold opacity-60 mt-1">PICK DISHES (min 2)</div>
+      <div id="mm_rows" class="space-y-2"></div>
+      <button onclick="addMealRow()" class="text-xs font-extrabold border border-dashed border-espresso/30 rounded-2xl py-2.5 btn-press">＋ Add a dish</button>
+      <div id="mm_preview" class="rounded-2xl bg-espresso text-cream p-4 text-sm font-semibold"></div>
+      <input type="hidden" id="mm_id">
+      <div class="flex gap-2"><button onclick="saveMeal()" class="flex-1 bg-espresso text-cream font-extrabold py-3 rounded-2xl text-sm btn-press">Save meal</button><button onclick="closeMealModal()" class="flex-1 border font-extrabold py-3 rounded-2xl text-sm btn-press">Cancel</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Item modal -->
+<div id="itemModal" class="fixed inset-0 bg-black/55 backdrop-blur-[2px] hidden z-50 items-center justify-center p-4 fade-in">
+  <div class="bg-cream rounded-[1.8rem] p-6 w-full max-w-md pop max-h-[90vh] overflow-y-auto">
+    <h2 id="itemTitle" class="font-display font-bold text-xl">Add dish</h2>
+    <div class="grid gap-2.5 mt-4">
+      <input id="f_name" placeholder="Dish name *" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+      <div class="grid grid-cols-2 gap-2.5">
+        <input id="f_cat" placeholder="Category" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+        <input id="f_price" type="number" placeholder="Price ₹ *" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+      </div>
+      <div class="grid grid-cols-2 gap-2.5 items-center">
+        <input id="f_off" type="number" min="0" max="90" placeholder="Discount % (0–90)" class="border rounded-2xl px-4 py-2.5 text-sm font-semibold bg-white outline-none focus:ring-2 ring-caramel">
+        <span class="text-[11px] font-bold opacity-50">🏷️ 0 = no offer.<br>Guests see strikethrough price.</span>
+      </div>
+      <input id="f_img" placeholder="Photo URL (optional)" class="border rounded-2xl px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 ring-caramel">
+      <textarea id="f_desc" placeholder="Short tasty description" rows="2" class="border rounded-2xl px-4 py-2.5 text-sm bg-white outline-none focus:ring-2 ring-caramel"></textarea>
+      <label class="text-sm font-bold flex gap-2 items-center"><input type="checkbox" id="f_veg" checked class="w-4 h-4 accent-emerald-600"> Veg dish</label>
+      <input type="hidden" id="f_id">
+      <div class="flex gap-2"><button onclick="saveItem()" class="flex-1 bg-espresso text-cream font-extrabold py-3 rounded-2xl text-sm btn-press">Save</button><button onclick="closeItemModal()" class="flex-1 border font-extrabold py-3 rounded-2xl text-sm btn-press">Cancel</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 hidden"><span id="toastTxt" class="block bg-espresso text-cream text-xs font-bold px-4 py-2.5 rounded-full whitespace-nowrap"></span></div>
+<audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+<script>
+let ORDERS=[], MENU=[], TABLES=[], filter='pending', soundOn=true, cafeName='Cafe', socket=null, pinBuf='';
+const $=id=>document.getElementById(id);
+const money=n=>'₹'+n;
+const sstore = (() => { try { sessionStorage.setItem('__t','1'); sessionStorage.removeItem('__t'); return sessionStorage; } catch (e) { const m={}; return { getItem:k=>(k in m?m[k]:null), setItem:(k,v)=>{m[k]=String(v);}, removeItem:k=>{delete m[k];} }; } })();
+const token=()=>{ try { return sstore.getItem('owner_token')||''; } catch (e) { return ''; } };
+const adm=()=>({'Content-Type':'application/json','x-admin-token':token()});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const TITLES={orders:'Live orders',history:'Order history',menu:'Menu studio',meals:'Combo meals',qr:'Tables & QR',cafe:'Cafe settings'};
+
+/* ── PIN pad ── */
+function paintDots(){ $('pinDots').innerHTML=[0,1,2,3,4,5].map(i=>`<span class="pin-dot w-3.5 h-3.5 rounded-full ${i<pinBuf.length?'bg-espresso scale-110':'bg-espresso/15'}"></span>`).join(''); }
+function buildPad(){
+  const keys=['1','2','3','4','5','6','7','8','9','C','0','⌫'];
+  $('pinPad').innerHTML=keys.map(k=>`<button data-k="${k}" class="py-3.5 rounded-2xl font-extrabold text-lg ${k==='C'?'bg-red-100 text-red-600':k==='⌫'?'bg-espresso/5':'bg-white shadow-card'} btn-press border border-espresso/10">${k}</button>`).join('');
+  $('pinPad').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k; $('pinErr').classList.add('hidden');
+    if(k==='C') pinBuf=''; else if(k==='⌫') pinBuf=pinBuf.slice(0,-1); else if(pinBuf.length<10) pinBuf+=k;
+    paintDots(); if(pinBuf.length>=4) doLogin(true);
+  });
+}
+paintDots(); buildPad();
+async function doLogin(auto){
+  if(!pinBuf) return;
+  const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pinBuf})});
+  if(r.ok){ const d=await r.json(); sstore.setItem('owner_token',d.token); sstore.setItem('pin_default',d.pinDefault?'1':'0'); paintPinWarn(); $('loginGate').style.display='none'; connectSocket(); refresh(); }
+  else if(!auto || pinBuf.length>=6){ $('pinErr').classList.remove('hidden'); pinBuf=''; paintDots(); }
+}
+function logout(){ sstore.removeItem('owner_token'); location.reload(); }
+function paintPinWarn(){ $('pinWarn').classList.toggle('hidden', sstore.getItem('pin_default') !== '1'); }
+paintPinWarn();
+
+/* ── shell ── */
+document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.navBtn').forEach(x=>{x.classList.remove('nav-active'); if(x.classList.contains('md:hidden')===false&&x.closest('header')){} });
+  document.querySelectorAll(`.navBtn[data-tab="${b.dataset.tab}"]`).forEach(x=>x.classList.add('nav-active'));
+  ['orders','history','menu','meals','qr','cafe'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==b.dataset.tab));
+  $('pageTitle').textContent=TITLES[b.dataset.tab];
+});
+let toastT; function toast(m){ $('toastTxt').textContent=m; $('toast').classList.remove('hidden'); clearTimeout(toastT); toastT=setTimeout(()=>$('toast').classList.add('hidden'),2600); }
+window.addEventListener('error', e => { try { toast('⚠️ ' + String(e.message || 'tap failed').slice(0, 110)); } catch (_) {} });
+async function runDiag(){
+  const out = ['JS ✓'];
+  try { sstore.setItem('__d','1'); sstore.removeItem('__d'); out.push('storage ✓'); } catch (e) { out.push('storage ✗ BLOCKED'); }
+  out.push(token() ? 'login ✓' : 'login ✗ (enter PIN)');
+  try { const r = await fetch('/api/menu'); out.push(r.ok ? 'server ✓' : 'server ✗ ' + r.status); } catch (e) { out.push('server ✗ OFFLINE'); }
+  toast(out.join(' • '));
+}
+$('soundBtn').onclick=e=>{ soundOn=!soundOn; e.target.textContent=soundOn?'🔔 Sound':'🔕 Muted'; paintNotif(); };
+function paintNotif(){ const ok='Notification' in window&&Notification.permission==='granted'; $('notifBtn').textContent=ok?'🔔 Alerts on':'🔕 Alerts'; }
+$('notifBtn').onclick=async()=>{ if(!('Notification' in window)) return toast('Notifications not supported'); if(Notification.permission==='granted'){toast('Alerts already on ✅');return;} await Notification.requestPermission(); paintNotif(); };
+paintNotif();
+setInterval(()=>{ const c=$('clock'); if(c) c.textContent=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}); },1000);
+setInterval(()=>{ if(token()) refresh(false); },9000);
+
+function connectSocket(){
+  if(socket) socket.disconnect();
+  socket=io({auth:{token:token()}});
+  socket.on('connect',()=>{ $('connLbl').textContent='LIVE'; });
+  socket.on('disconnect',()=>{ $('connLbl').textContent='OFFLINE'; });
+  socket.on('new-order',o=>{ ORDERS.unshift(o); afterUpdate(true,o); });
+  socket.on('orders-updated',o=>{ ORDERS=o; afterUpdate(false); });
+  socket.on('order-updated',o=>{ ORDERS=ORDERS.map(x=>x.id===o.id?o:x); afterUpdate(false); });
+  socket.on('menu-updated',m=>{ MENU=m; renderMenuAdmin(); renderMeals(); renderOffers(); });
+  socket.on('assistance',list=>assistPing(list));
+}
+function afterUpdate(isNew,order){
+  renderOrders(isNew&&order?order.id:null); renderStats(); renderChart(); renderHistory();
+  if(isNew){ if(soundOn) $('ding').play().catch(()=>{});
+    document.title='🔔 NEW '+order.id+' • '+order.table; setTimeout(()=>document.title='Owner Studio — Cafe QR Orders',4000);
+    if('Notification' in window&&Notification.permission==='granted') new Notification(`🔔 ${order.id} • Table ${order.table} — ₹${order.total}`,{body:order.items.map(i=>i.qty+'× '+i.name).join(', ')});
+  }
+}
+
+async function refresh(loud=true){
+  try{
+    const [oR,menu,tables,info,sR]=await Promise.all([
+      fetch('/api/orders',{headers:adm()}),fetch('/api/menu').then(r=>r.json()),
+      fetch('/api/tables').then(r=>r.json()),fetch('/api/info').then(r=>r.json()),
+      fetch('/api/stats',{headers:adm()}).then(r=>r.ok?r.json():null).catch(()=>null)]);
+    if(oR.status===401){ $('loginGate').style.display='grid'; return; }
+    ORDERS=await oR.json(); MENU=menu; TABLES=tables; cafeName=info.cafeName;
+    const lbl=$('cafeLbl'); if(lbl) lbl.textContent=cafeName; $('cafeLblSide').textContent=cafeName; $('cafeNameInp').value=cafeName;
+    if(info.details){ $('cafePhone').value=info.details.phone||''; $('cafeAddr').value=info.details.address||''; $('cafeHours').value=info.details.hours||''; }
+    renderOrders(); renderMenuAdmin(); renderMeals(); renderQR(); renderStats(sR); renderChart(); renderHistory(); loadHH(); loadAssists();
+  }catch(e){ if(loud) toast('Refresh failed — offline?'); }
+}
+
+/* ── stats + chart ── */
+function calcStats(){
+  const t=new Date().toISOString().slice(0,10);
+  const td=ORDERS.filter(o=>o.createdAt.slice(0,10)===t&&o.status!=='cancelled');
+  return { todayOrders:td.length, todayRevenue:td.reduce((a,o)=>a+o.total,0),
+    pending:ORDERS.filter(o=>o.status==='pending').length, preparing:ORDERS.filter(o=>o.status==='preparing').length,
+    ready:ORDERS.filter(o=>o.status==='ready').length, total:ORDERS.length };
+}
+function renderStats(s){
+  s=s||calcStats();
+  const cards=[
+    ['⏳ Pending',s.pending,'from-red-500 to-[#8A2E10]'],
+    ['👨‍🍳 Preparing',s.preparing,'from-amber-500 to-[#8A5A10]'],
+    ['🧾 Today',s.todayOrders+' orders','from-espresso to-[#4A2C15]'],
+    ['💰 Revenue',money(s.todayRevenue),'from-emerald-600 to-[#0E5A3C]']];
+  $('stats').innerHTML=cards.map(([l,v,g])=>`<div class="bg-gradient-to-br ${g} text-cream rounded-3xl p-4 shadow-card"><div class="text-[10px] font-extrabold tracking-[.15em] opacity-70">${l.toUpperCase()}</div><div class="font-display font-bold text-2xl mt-1">${v}</div></div>`).join('');
+  const badge=$('navBadge'); const p=ORDERS.filter(o=>o.status==='pending').length;
+  badge.textContent=p; badge.classList.toggle('hidden',!p);
+}
+function renderChart(){
+  const t=new Date().toISOString().slice(0,10);
+  const hours=Array.from({length:13},(_,i)=>i+9);
+  const counts=hours.map(h=>ORDERS.filter(o=>{const d=new Date(o.createdAt);return o.createdAt.slice(0,10)===t&&d.getHours()===h;}).length);
+  const mx=Math.max(1,...counts);
+  $('hourChart').innerHTML=hours.map((h,i)=>`<div class="flex-1 flex flex-col items-center gap-1"><div class="w-full rounded-t-lg bg-gradient-to-t from-caramel to-amber-400 transition-all" style="height:${Math.round(counts[i]/mx*80)+4}px;opacity:${counts[i]?1:.25}"></div><div class="text-[9px] font-bold opacity-40">${h>12?h-12+'p':h+'a'}</div></div>`).join('');
+}
+
+/* ── kanban orders ── */
+const COLS=[['pending','⏳ Pending','border-red-200'],['preparing','👨‍🍳 Preparing','border-amber-200'],['ready','🔔 Ready','border-emerald-200'],['served','✅ Served','border-espresso/10']];
+const NEXT={pending:'preparing',preparing:'ready',ready:'served'};
+const NEXT_LBL={pending:'Start preparing →',preparing:'Mark ready →',ready:'Mark served →'};
+const timeAgo=iso=>{const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';};
+function cardHTML(o,flash){
+  return `<div class="bg-white rounded-3xl border shadow-card p-4 ${o.status==='pending'?'urgent border-caramel':''} ${flash?'new-card':''}">
+    <div class="flex justify-between items-start gap-2"><div><div class="font-extrabold text-sm">${o.id}</div><div class="font-display font-bold text-2xl leading-none mt-0.5">🪑 ${esc(o.table)}</div></div>
+    <span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full ${o.status==='pending'?'bg-red-100 text-red-700':o.status==='preparing'?'bg-amber-100 text-amber-800':o.status==='ready'?'bg-emerald-100 text-emerald-700':'bg-espresso/5 opacity-60'}">${o.status.toUpperCase()}</span></div>
+    <div class="text-[11px] font-semibold opacity-50 mt-1">${esc(o.customerName)} • ${timeAgo(o.createdAt)}</div>
+    <div class="mt-2 space-y-1 text-[13px] font-medium">${o.items.map(i=>`<div class="flex justify-between gap-2"><span class="truncate"><b>${i.qty}×</b> ${esc(i.name)}${(i.mrp||0)>i.price?` <s class="opacity-40 text-[11px]">${money(i.mrp)}</s>`:''}</span><span class="font-bold shrink-0">${money(i.price*i.qty)}</span></div>`).join('')}</div>
+    ${o.note?`<div class="text-[11px] font-semibold bg-amber-50 border border-amber-200 rounded-xl p-2 mt-2">📝 ${esc(o.note)}</div>`:''}
+    <div class="font-extrabold text-base mt-2">${money(o.total)}${o.saved > 0 ? ` <span class="text-[10px] text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">guest saved ${money(o.saved)}</span>` : ''}</div>
+    <div class="flex gap-1.5 mt-2.5">
+      ${NEXT[o.status]?`<button onclick="setStatus('${o.id}','${NEXT[o.status]}')" class="flex-1 bg-espresso text-cream text-[11px] font-extrabold py-2.5 rounded-xl btn-press">${NEXT_LBL[o.status]}</button>`:''}
+      ${!['served','cancelled'].includes(o.status)?`<button onclick="setStatus('${o.id}','cancelled')" class="text-[11px] font-extrabold py-2.5 px-3 rounded-xl border text-red-600 btn-press">✕</button>`:`<button onclick="delOrder('${o.id}')" title="Delete from history" class="text-[11px] font-extrabold py-2.5 px-3 rounded-xl border btn-press">🗑</button>`}
+    </div></div>`;
+}
+function renderOrders(flashId){
+  const counts={all:ORDERS.length,pending:0,preparing:0,ready:0,served:0,cancelled:0};
+  ORDERS.forEach(o=>counts[o.status]=(counts[o.status]||0)+1);
+  $('statusFilters').innerHTML=['pending','preparing','ready','served','cancelled','all'].map(s=>`<button onclick="setFilter('${s}')" class="px-4 py-2 rounded-full text-[11px] font-extrabold btn-press ${filter===s?'bg-espresso text-cream shadow-card':'bg-white border'}">${s.toUpperCase()} • ${counts[s]??0}</button>`).join('');
+  $('kanban').innerHTML=COLS.map(([st,title,bc])=>{
+    const list=ORDERS.filter(o=>o.status===st&&(filter==='all'||filter===st));
+    return `<div class="rounded-3xl bg-espresso/[.03] border ${bc} p-2.5"><div class="px-2 py-1.5 text-xs font-extrabold flex justify-between"><span>${title}</span><span class="opacity-40">${list.length}</span></div><div class="space-y-2.5">${list.map(o=>cardHTML(o,o.id===flashId)).join('')||'<p class="text-[11px] opacity-30 text-center py-4 font-semibold">Empty</p>'}</div></div>`;
+  }).join('');
+}
+function setFilter(s){ filter=s; renderOrders(); }
+async function setStatus(id,status){ try{ const r=await fetch('/api/orders/'+id,{method:'PATCH',headers:adm(),body:JSON.stringify({status})}); if(r.status===401) return logout(); if(!r.ok) throw new Error(r.status); refresh(false); }catch(e){ toast('⚠️ No connection — check internet & refresh'); } }
+async function delOrder(id){ if(!confirm('Permanently delete '+id+' from history?')) return; try{ const r=await fetch('/api/orders/'+id,{method:'DELETE',headers:adm()}); if(r.status===401) return logout(); if(!r.ok) throw new Error(r.status); refresh(false); toast('Order deleted 🗑'); }catch(e){ toast('⚠️ No connection — check internet & refresh'); } }
+
+/* ── menu studio ── */
+/* ── offers manager ── */
+async function setOffer(id, off){
+  off = Math.max(0, Math.min(90, Math.round(Number(off) || 0)));
+  const r = await fetch('/api/menu/' + id, { method: 'PUT', headers: adm(), body: JSON.stringify({ off }) });
+  if (r.status === 401) return logout();
+  const m = MENU.find(x => x.id === id);
+  refresh(false); toast(off > 0 ? `🏷️ ${m ? m.name : 'Dish'} now ${off}% off!` : `Offer removed ${m ? 'for ' + m.name : ''}`);
+}
+function offerStep(id, d){ const m = MENU.find(x => x.id === id); if (m) setOffer(id, (Number(m.off) || 0) + d); }
+function addOffer(){ const id = $('offerDish').value; if (!id) return toast('Pick a dish first'); setOffer(id, Number($('offerPct').value)); }
+function offerFor(id){ const m = MENU.find(x => x.id === id); if (!m) return; editItem(m); setTimeout(() => { $('f_off').focus(); $('f_off').select(); }, 80); toast('Set Discount % for ' + m.name + ' 🏷️'); }
+function renderOffers(){
+  const deals = MENU.filter(m => m.kind !== 'meal' && (Number(m.off) || 0) > 0);
+  const plain = MENU.filter(m => m.kind !== 'meal' && !(Number(m.off) || 0) > 0);
+  $('offerCount').textContent = deals.length ? deals.length + ' live' : 'none live';
+  $('offerList').innerHTML = deals.map(m => {
+    const off = Math.round(m.off), ep = Math.max(1, Math.round(m.price * (1 - off / 100)));
+    return `<div class="bg-white/10 border border-white/20 rounded-2xl p-3 flex items-center gap-2.5">
+      <img src="${esc(m.img)}" class="w-10 h-10 rounded-xl object-cover shrink-0">
+      <div class="flex-1 min-w-0"><div class="font-extrabold text-[13px] truncate">${esc(m.name)}</div>
+      <div class="text-[11px] opacity-70 font-bold"><s>${money(m.price)}</s> → <b>${money(ep)}</b> • −${off}%</div></div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button onclick="offerStep('${m.id}',-5)" class="w-7 h-7 rounded-full bg-white/15 font-extrabold btn-press">−</button>
+        <span class="text-xs font-extrabold w-9 text-center">${off}%</span>
+        <button onclick="offerStep('${m.id}',5)" class="w-7 h-7 rounded-full bg-white font-extrabold text-espresso btn-press">＋</button>
+        <button onclick="setOffer('${m.id}',0)" class="w-7 h-7 rounded-full bg-red-500 font-extrabold btn-press" title="Remove offer">✕</button>
+      </div></div>`;
+  }).join('') || '<p class="text-[12px] opacity-70 font-semibold col-span-2">No active offers — pick a dish below and put it on offer 👇</p>';
+  $('offerDish').innerHTML = plain.map(m => `<option value="${m.id}">${esc(m.name)} — ${money(m.price)}</option>`).join('') || '<option value="">All dishes on offer 🎉</option>';
+}
+/* ── combo meals ── */
+let mealRows = [];
+const dishEff = d => { const off = Math.max(0, Math.min(90, Number(d.off) || 0)); return off > 0 ? Math.max(1, Math.round(d.price * (1 - off / 100))) : d.price; };
+function openMealModal(id){
+  const m = id ? MENU.find(x => x.id === id) : null;
+  $('mealTitle').textContent = m ? 'Edit meal 🍱' : 'Build a meal 🍱';
+  $('mm_id').value = m ? m.id : '';
+  $('mm_name').value = m ? m.name : ''; $('mm_price').value = m ? m.price : '';
+  $('mm_img').value = m && !/unsplash\.com\/photo-1554118811/.test(m.img || '') ? m.img : '';
+  $('mm_desc').value = m ? (m.desc || '') : '';
+  mealRows = m && m.contains ? m.contains.map(c => ({ id: c.id, qty: c.qty })) : [{ id: '', qty: 1 }, { id: '', qty: 1 }];
+  renderMealRows();
+  $('mealModal').classList.remove('hidden'); $('mealModal').classList.add('flex');
+}
+function closeMealModal(){ $('mealModal').classList.add('hidden'); $('mealModal').classList.remove('flex'); }
+function addMealRow(id, qty){ mealRows.push({ id: id || '', qty: qty || 1 }); renderMealRows(); }
+function mealRowChg(i, field, v){ mealRows[i][field] = field === 'qty' ? Math.max(1, Math.min(10, Number(v) || 1)) : v; renderMealPreview(); }
+function mealRowDel(i){ mealRows.splice(i, 1); if (!mealRows.length) mealRows.push({ id: '', qty: 1 }); renderMealRows(); }
+function dishOptions(sel){
+  const dishes = MENU.filter(d => d.kind !== 'meal');
+  return `<option value="">— pick dish —</option>` + dishes.map(d => `<option value="${d.id}" ${d.id === sel ? 'selected' : ''}>${esc(d.name)} — ${money(dishEff(d))}</option>`).join('');
+}
+function renderMealRows(){
+  $('mm_rows').innerHTML = mealRows.map((r, i) => `<div class="flex gap-2 items-center">
+    <select onchange="mealRowChg(${i},'id',this.value)" class="flex-1 border rounded-2xl px-3 py-2.5 text-xs font-bold bg-white outline-none focus:ring-2 ring-caramel">${dishOptions(r.id)}</select>
+    <div class="flex items-center gap-1 shrink-0"><button onclick="mealRowChg(${i},'qty',${r.qty - 1})" class="w-7 h-7 rounded-full bg-espresso/5 font-extrabold btn-press">−</button><span class="text-xs font-extrabold w-5 text-center">${r.qty}×</span><button onclick="mealRowChg(${i},'qty',${r.qty + 1})" class="w-7 h-7 rounded-full bg-espresso text-cream font-extrabold btn-press">＋</button></div>
+    <button onclick="mealRowDel(${i})" class="w-7 h-7 rounded-full bg-red-100 text-red-600 text-xs font-extrabold btn-press shrink-0">✕</button>
+  </div>`).join('');
+  renderMealPreview();
+}
+function renderMealPreview(){
+  const parts = mealRows.filter(r => r.id && MENU.some(d => d.id === r.id));
+  const mrp = parts.reduce((s, r) => { const d = MENU.find(x => x.id === r.id); return s + (d ? dishEff(d) * r.qty : 0); }, 0);
+  const price = Number($('mm_price').value) || 0;
+  const save = mrp - price;
+  $('mm_preview').innerHTML = parts.length < 2
+    ? `<span class="opacity-60 text-[13px]">Pick at least 2 dishes to preview the deal…</span>`
+    : `Separate total <s class="opacity-60">${money(mrp)}</s> → <b class="text-caramel-light">${money(price) || 'set a price 👆'}</b>${price > 0 ? (save > 0 ? ` &nbsp;•&nbsp; <span class="text-emerald-400 font-extrabold">guest saves ${money(save)} 🎉</span>` : ` &nbsp;•&nbsp; <span class="opacity-60">no savings at this price</span>`) : ''}<div class="text-[11px] opacity-60 mt-1 truncate">${parts.map(r => { const d = MENU.find(x => x.id === r.id); return r.qty + '× ' + (d ? esc(d.name) : '?'); }).join(' + ')}</div>`;
+}
+$('mm_price').addEventListener('input', renderMealPreview);
+async function saveMeal(){
+  const name = $('mm_name').value.trim(), price = Number($('mm_price').value);
+  const parts = mealRows.filter(r => r.id);
+  if (!name) return toast('Give the meal a name');
+  if (!price || price <= 0) return toast('Set a combo price ₹');
+  if (parts.length < 2) return toast('Pick at least 2 dishes');
+  const body = { name, price, img: $('mm_img').value, desc: $('mm_desc').value, kind: 'meal', contains: parts };
+  const id = $('mm_id').value;
+  const r = await fetch(id ? '/api/menu/' + id : '/api/menu', { method: id ? 'PUT' : 'POST', headers: adm(), body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) return toast('Failed: ' + (d.error || r.status));
+  closeMealModal(); refresh(false); toast(id ? 'Meal updated 🍱' : 'Meal is live! 🍱🎉');
+}
+async function delMeal(id){ if (!confirm('Delete this meal? (dishes stay on the menu)')) return; await fetch('/api/menu/' + id, { method: 'DELETE', headers: adm() }); refresh(false); }
+async function toggleMeal(id, toAvail){ await fetch('/api/menu/' + id, { method: 'PUT', headers: adm(), body: JSON.stringify({ available: toAvail }) }); refresh(false); }
+function renderMeals(){
+  const meals = MENU.filter(m => m.kind === 'meal');
+  $('mealGrid').innerHTML = meals.map(m => {
+    const mrp = (m.contains || []).reduce((s, c) => { const d = MENU.find(x => x.id === c.id); return s + (d ? dishEff(d) * c.qty : 0); }, 0);
+    const off = mrp > m.price ? Math.round((1 - m.price / mrp) * 100) : 0;
+    const blocked = m.available !== false && !(m.contains || []).every(c => { const d = MENU.find(x => x.id === c.id); return d && d.available !== false; });
+    return `<div class="bg-white rounded-3xl border shadow-card overflow-hidden ${m.available === false ? 'opacity-55' : ''} ${blocked ? '!border-red-300' : ''}">
+      <div class="relative"><img src="${esc(m.img)}" class="w-full h-32 object-cover" loading="lazy">
+        <span class="absolute top-2 left-2 bg-espresso text-cream text-[10px] font-extrabold px-2 py-1 rounded-full">🍱 MEAL</span>
+        ${off > 0 ? `<span class="absolute top-2 right-2 bg-caramel text-white text-[10px] font-extrabold px-2 py-1 rounded-full">SAVE ${money(mrp - m.price)}</span>` : ''}
+        ${blocked ? '<span class="absolute bottom-2 right-2 bg-red-600 text-white text-[10px] font-extrabold px-2 py-1 rounded-full">NEEDS ATTENTION</span>' : ''}
+      </div>
+      <div class="p-4"><div class="font-extrabold truncate">${esc(m.name)}</div>
+        <div class="text-[11px] opacity-60 font-semibold mt-0.5">${(m.contains || []).map(c => { const d = MENU.find(x => x.id === c.id); return c.qty + '× ' + (d ? esc(d.name) : '<s>removed dish</s>'); }).join(' + ') || '—'}</div>
+        <div class="flex items-center gap-2 mt-1.5"><span class="font-extrabold text-lg">${money(m.price)}</span>${off > 0 ? `<s class="text-xs opacity-40 font-bold">${money(mrp)}</s><span class="text-[10px] font-extrabold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">−${off}%</span>` : ''}</div>
+        ${blocked ? '<div class="text-[11px] font-bold text-red-600 mt-1">A dish is hidden/removed — meal auto-paused for guests.</div>' : ''}
+        <div class="flex gap-1.5 mt-2.5">
+          <button onclick="openMealModal('${m.id}')" class="flex-1 text-[11px] font-extrabold bg-espresso text-cream rounded-xl py-2 btn-press">✏️ Edit meal</button>
+          <button onclick="toggleMeal('${m.id}',${m.available === false})" class="text-[11px] font-extrabold px-3 py-2 rounded-xl btn-press ${m.available === false ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}">${m.available === false ? 'SHOW' : 'HIDE'}</button>
+          <button onclick="delMeal('${m.id}')" class="text-[11px] font-extrabold px-3 py-2 rounded-xl bg-red-600 text-white btn-press">✕</button>
+        </div></div></div>`;
+  }).join('') || '<p class="col-span-2 text-center text-sm opacity-40 py-10 font-semibold">No meals yet — bundle your bestsellers into a combo 👆</p>';
+}
+function renderMenuAdmin(){
+  renderOffers();
+  $('menuTable').innerHTML=MENU.filter(m=>m.kind!=='meal').map(m=>{ const off=Math.round(Number(m.off)||0); const ep=off>0?Math.max(1,Math.round(m.price*(1-off/100))):m.price;
+  const used=MENU.filter(x=>x.kind==='meal'&&(x.contains||[]).some(c=>c.id===m.id)).length;
+  return `<div class="bg-white rounded-3xl border shadow-card overflow-hidden flex ${off>0?'!border-caramel/50':''}">
+    <div class="relative shrink-0"><img src="${esc(m.img)}" class="w-24 h-full object-cover" loading="lazy">${off>0?`<span class="absolute top-1.5 left-1.5 bg-caramel text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">−${off}%</span>`:''}</div>
+    <div class="p-3 flex-1 min-w-0"><div class="font-extrabold text-sm truncate">${esc(m.name)} ${m.available===false?'<span class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">HIDDEN</span>':''}</div>
+    <div class="text-[11px] opacity-50 font-semibold">${esc(m.category)} • ${off>0?`<s>${money(m.price)}</s> <b class="text-caramel">${money(ep)}</b> • 🏷️ ${off}% off`:money(m.price)} • ${m.veg?'🟢':'🔴'}${used?` • 🍱 in ${used} meal${used>1?'s':''}`:''}</div>
+    <div class="flex gap-1.5 mt-2 flex-wrap"><button onclick="toggleAvail('${m.id}',${m.available===false})" class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full btn-press ${m.available===false?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-700'}">${m.available===false?'SHOW':'HIDE'}</button>
+    <button onclick="offerFor('${m.id}')" class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full btn-press ${off>0?'bg-caramel text-white':'bg-caramel/10 text-caramel'}">🏷️ ${off>0?off+'%':'OFFER'}</button>
+    <button onclick='editItem(${JSON.stringify(m).replace(/'/g,"&#39;")})' class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full bg-espresso/5 btn-press">EDIT</button>
+    <button onclick="delItem('${m.id}')" class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full bg-red-600 text-white btn-press">✕</button></div></div>
+  </div>`; }).join('');
+}
+function openItemModal(){ $('itemTitle').textContent='Add dish'; ['f_name','f_cat','f_price','f_img','f_desc','f_off'].forEach(id=>$(id).value=''); $('f_id').value=''; $('f_veg').checked=true; $('itemModal').classList.remove('hidden'); $('itemModal').classList.add('flex'); }
+function closeItemModal(){ $('itemModal').classList.add('hidden'); $('itemModal').classList.remove('flex'); }
+function editItem(m){ $('itemTitle').textContent='Edit dish'; $('f_id').value=m.id; $('f_name').value=m.name; $('f_cat').value=m.category; $('f_price').value=m.price; $('f_off').value=m.off||''; $('f_img').value=m.img||''; $('f_desc').value=m.desc||''; $('f_veg').checked=m.veg!==false; $('itemModal').classList.remove('hidden'); $('itemModal').classList.add('flex'); }
+async function saveItem(){
+  const body={name:$('f_name').value,category:$('f_cat').value||'Misc',price:Number($('f_price').value),off:Number($('f_off').value)||0,img:$('f_img').value,desc:$('f_desc').value,veg:$('f_veg').checked};
+  if(!body.name||!body.price) return toast('Name + price needed');
+  const id=$('f_id').value;
+  await fetch(id?'/api/menu/'+id:'/api/menu',{method:id?'PUT':'POST',headers:adm(),body:JSON.stringify(body)});
+  closeItemModal(); refresh(false); toast('Menu saved ✅');
+}
+async function delItem(id){ if(!confirm('Delete this dish?')) return; const r=await fetch('/api/menu/'+id,{method:'DELETE',headers:adm()}); const d=await r.json().catch(()=>({})); refresh(false); toast(d.brokeMeals>0?`⚠️ Paused ${d.brokeMeals} meal${d.brokeMeals>1?'s':''} using this dish`:'Deleted'); }
+async function toggleAvail(id,toAvail){ await fetch('/api/menu/'+id,{method:'PUT',headers:adm(),body:JSON.stringify({available:toAvail})}); refresh(false); }
+
+/* ── QR + cafe ── */
+function renderQR(){
+  const base=location.origin;
+  $('urlSample').textContent=base+'/menu.html?table=T1';
+  $('qrGrid').innerHTML=TABLES.map(t=>{
+    const url=base+'/menu.html?table='+t;
+    return `<div class="bg-white rounded-3xl border shadow-card p-4 text-center">
+      <div class="font-display font-bold text-lg">Table ${t}</div>
+      <div id="qr-${t}" class="flex justify-center my-2 [&_img]:mx-auto"></div>
+      <button onclick="dlQR('${t}')" class="text-[10px] font-extrabold text-caramel">⬇ Download PNG</button>
+      <div class="flex gap-1.5 mt-2"><a href="${url}" target="_blank" class="flex-1 text-[11px] font-extrabold bg-espresso/5 rounded-full py-2 btn-press">Open</a><button onclick="printOne('${t}')" class="flex-1 text-[11px] font-extrabold bg-espresso text-cream rounded-full py-2 btn-press">Print</button></div>
+    </div>`;
+  }).join('');
+  TABLES.forEach(t=>{ const el=$('qr-'+t); if(el){ el.innerHTML=''; new QRCode(el,{text:location.origin+'/menu.html?table='+t,width:130,height:130}); } });
+}
+function dlQR(t){ const img=document.querySelector('#qr-'+t+' img'); const cv=document.querySelector('#qr-'+t+' canvas'); const src=img?img.src:(cv?cv.toDataURL():null); if(!src) return toast('QR not ready'); const a=document.createElement('a'); a.href=src; a.download='table-'+t+'-qr.png'; a.click(); }
+function qrPrintDoc(t){
+  const url=location.origin+'/menu.html?table='+t;
+  return `<div style="text-align:center;font-family:sans-serif;padding:48px"><h1>☕ ${esc(cafeName)}</h1><h2 style="font-size:42px">Table ${t}</h2><p>Scan to view menu & order</p><div id="q" style="display:flex;justify-content:center"></div><p style="color:#888">${url}</p><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('q'),{text:'${url}',width:280,height:280})<\/script></div>`;
+}
+function printOne(t){ const w=window.open('','_blank'); w.document.write(qrPrintDoc(t)); w.document.close(); setTimeout(()=>w.print(),900); }
+function printAll(){ const w=window.open('','_blank'); w.document.write(TABLES.map(qrPrintDoc).join('<hr>')); w.document.close(); setTimeout(()=>w.print(),1200); }
+async function addTable(){ const t=$('newTable').value.trim().toUpperCase(); if(!t) return; await fetch('/api/tables',{method:'POST',headers:adm(),body:JSON.stringify({table:t})}); $('newTable').value=''; refresh(false); toast('Table '+t+' added ✅'); }
+async function saveCafe(){
+  await fetch('/api/info',{method:'POST',headers:adm(),body:JSON.stringify({cafeName:$('cafeNameInp').value,details:{address:$('cafeAddr').value,hours:$('cafeHours').value,phone:$('cafePhone').value},adminPin:$('newPin').value||undefined})});
+  const changedPin = $('newPin').value.trim().length >= 4;
+  $('newPin').value=''; refresh(false); toast('Cafe settings saved ✅');
+  if (changedPin) { sstore.setItem('pin_default','0'); paintPinWarn(); }
+}
+/* ── order history ── */
+let histPreset='week', histLimit=60;
+const PRESETS=[['today','Today'],['yesterday','Yesterday'],['week','Last 7 days'],['month','This month'],['all','All time']];
+const dayStr=d=>d.toISOString().slice(0,10);
+function presetRange(p){
+  const now=new Date(); const start=new Date(now), end=new Date(now);
+  if(p==='today'){ return [dayStr(start),dayStr(end)]; }
+  if(p==='yesterday'){ start.setDate(start.getDate()-1); return [dayStr(start),dayStr(start)]; }
+  if(p==='week'){ start.setDate(start.getDate()-6); return [dayStr(start),dayStr(end)]; }
+  if(p==='month'){ start.setDate(1); return [dayStr(start),dayStr(end)]; }
+  return ['',''];
+}
+function paintPresets(){
+  $('histPresets').innerHTML=PRESETS.map(([v,l])=>`<button onclick="setHistPreset('${v}')" class="px-3.5 py-1.5 rounded-full text-[11px] font-extrabold btn-press ${histPreset===v?'bg-espresso text-cream shadow-card':'bg-espresso/5'}">${l}</button>`).join('');
+}
+function setHistPreset(p){ histPreset=p; const [f,t]=presetRange(p); $('histFrom').value=f; $('histTo').value=t; histLimit=60; paintPresets(); renderHistory(); }
+['histFrom','histTo','histStatus'].forEach(id=>document.addEventListener('change',e=>{ if(e.target&&e.target.id===id){ histPreset='custom'; paintPresets(); histLimit=60; renderHistory(); } }));
+$('histQ').addEventListener('input',()=>{ histLimit=60; renderHistory(); });
+function histFiltered(){
+  const f=$('histFrom').value, t=$('histTo').value, st=$('histStatus').value, q=$('histQ').value.trim().toLowerCase();
+  return ORDERS.filter(o=>{
+    const d=o.createdAt.slice(0,10);
+    if(f&&d<f) return false; if(t&&d>t) return false;
+    if(st!=='all'&&o.status!==st) return false;
+    if(q&&!(o.id.toLowerCase().includes(q)||o.table.toLowerCase().includes(q)||(o.customerName||'').toLowerCase().includes(q)||o.items.some(i=>i.name.toLowerCase().includes(q)))) return false;
+    return true;
+  });
+}
+function fmtDate(iso){
+  const d=new Date(iso); const today=dayStr(new Date());
+  const y=new Date(); y.setDate(y.getDate()-1); const yest=dayStr(y);
+  const ds=iso.slice(0,10);
+  const lbl=ds===today?'Today':ds===yest?'Yesterday':d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:d.getFullYear()!==new Date().getFullYear()?'numeric':undefined});
+  return {lbl,time:d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
+}
+function renderHistory(){
+  if(!$('histFrom').value&&histPreset!=='all'&&histPreset!=='custom'){ const [f,t]=presetRange(histPreset); $('histFrom').value=f; $('histTo').value=t; }
+  paintPresets();
+  const list=histFiltered();
+  const paid=list.filter(o=>o.status!=='cancelled');
+  const rev=paid.reduce((a,o)=>a+o.total,0), items=paid.reduce((a,o)=>a+o.items.reduce((s,i)=>s+i.qty,0),0);
+  const sum=[['🧾 Orders',list.length],['💰 Revenue',money(rev)],['🧮 Avg bill',paid.length?money(Math.round(rev/paid.length)):'—'],['🍽️ Items sold',items]];
+  $('histSummary').innerHTML=sum.map(([l,v])=>`<div class="bg-white rounded-3xl border shadow-card p-4"><div class="text-[10px] font-extrabold tracking-widest opacity-50">${l}</div><div class="font-display font-bold text-xl mt-0.5">${v}</div></div>`).join('');
+  // group by date, newest first
+  const groups={};
+  list.forEach(o=>{ const d=o.createdAt.slice(0,10); (groups[d]=groups[d]||[]).push(d); });
+  const days=Object.keys(groups).sort().reverse();
+  const shown=list.slice(0,histLimit);
+  const shownDays=[...new Set(shown.map(o=>o.createdAt.slice(0,10)))].sort().reverse();
+  $('histList').innerHTML=shownDays.map(d=>{
+    const rows=shown.filter(o=>o.createdAt.slice(0,10)===d);
+    const drev=rows.filter(o=>o.status!=='cancelled').reduce((a,o)=>a+o.total,0);
+    return `<div><div class="flex items-center gap-2 mb-2"><span class="text-xs font-extrabold bg-espresso text-cream px-3 py-1 rounded-full">${fmtDate(d+'T00:00').lbl}</span><span class="text-[11px] font-bold opacity-40">${rows.length} orders • ${money(drev)}</span><span class="flex-1 h-px bg-espresso/10"></span></div>
+    <div class="grid md:grid-cols-2 gap-2">${rows.map(o=>{ const f=fmtDate(o.createdAt); return `<div class="bg-white rounded-2xl border shadow-card p-3.5">
+      <div class="flex justify-between items-center gap-2"><span class="font-extrabold text-[13px]">${o.id} • 🪑 ${esc(o.table)}</span><span class="text-[10px] font-extrabold px-2 py-1 rounded-full ${o.status==='cancelled'?'bg-red-100 text-red-600':o.status==='served'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-800'}">${o.status.toUpperCase()}</span></div>
+      <div class="text-[11px] font-semibold opacity-50 mt-0.5">👤 ${esc(o.customerName)} • 🕒 ${f.time}${o.updatedAt!==o.createdAt?' • updated '+fmtDate(o.updatedAt).time:''}</div>
+      <div class="mt-1.5 space-y-0.5 text-[12px]">${o.items.map(i=>`<div class="flex justify-between gap-2"><span class="truncate text-espresso/80"><b>${i.qty}×</b> ${esc(i.name)}${(i.mrp||0)>i.price?` <s class="opacity-40">${money(i.mrp)}</s>`:''}</span><span class="font-bold shrink-0">${money(i.price*i.qty)}</span></div>`).join('')}</div>
+      ${o.note?`<div class="text-[11px] font-semibold opacity-60 mt-1">📝 ${esc(o.note)}</div>`:''}
+      <div class="flex justify-between items-center mt-1.5 pt-1.5 border-t border-espresso/10"><span class="font-extrabold text-sm">${money(o.total)}</span>${o.saved>0?`<span class="text-[10px] font-extrabold text-emerald-600">saved ${money(o.saved)}</span>`:''}</div>
+    </div>`; }).join('')}</div></div>`;
+  }).join('')||'<p class="text-center text-sm opacity-40 py-10 font-semibold">No orders match these filters 🔍</p>';
+  $('histMore').classList.toggle('hidden',list.length<=histLimit);
+  if(days.length&&!shownDays.length) $('histMore').classList.add('hidden');
+}
+function exportCSV(){
+  const list=histFiltered();
+  if(!list.length) return toast('Nothing to export');
+  const escC=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const rows=[['Order ID','Date','Time','Table','Customer','Status','Items','Qty','Total (Rs)','Discount saved (Rs)','Note'].join(',')];
+  list.forEach(o=>{ const f=fmtDate(o.createdAt);
+    rows.push([o.id,o.createdAt.slice(0,10),f.time,o.table,o.customerName,o.status,o.items.map(i=>i.qty+'x '+i.name).join('; '),o.items.reduce((s,i)=>s+i.qty,0),o.total,o.saved||0,o.note||''].map(escC).join(','));
+  });
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`cafe-orders-${$('histFrom').value||'all'}-to-${$('histTo').value||'all'}.csv`; a.click();
+  URL.revokeObjectURL(a.href); toast(`Exported ${list.length} orders 📥`);
+}
+/* ── happy hours ── */
+let HHS = [], hhDays = [1, 2, 3, 4, 5], HHCATS = [''];
+const DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function paintHHDays(){
+  $('hh_days').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => `<button onclick="hhDayTgl(${d})" class="px-3 py-1.5 rounded-full text-[11px] font-extrabold btn-press ${hhDays.includes(d) ? 'bg-caramel text-white' : 'bg-white/15 text-cream/70'}">${DAYN[d]}</button>`).join('');
+}
+function hhDayTgl(d){ hhDays = hhDays.includes(d) ? hhDays.filter(x => x !== d) : [...hhDays, d]; paintHHDays(); }
+async function loadHH(){
+  HHS = await fetch('/api/happyhours').then(r => r.json()).catch(() => []);
+  const cats = ['', ...new Set(MENU.filter(m => m.kind !== 'meal').map(m => m.category))];
+  const key = cats.join('|');
+  if (key !== loadHH._k) { loadHH._k = key; HHCATS = cats; const cur = Number($('hh_cat').value) || 0; $('hh_cat').innerHTML = cats.map((c, i) => `<option value="${i}">${c === '' ? 'All categories' : esc(c)}</option>`).join(''); $('hh_cat').value = String(Math.min(cur, cats.length - 1)); }
+  if (!$('hh_days').children.length) paintHHDays(); renderHH();
+}
+function renderHH(){
+  const live = HHS.filter(h => h.live);
+  $('hhLiveBadge').classList.toggle('hidden', !live.length);
+  if (live.length) $('hhLiveBadge').textContent = '● LIVE: ' + live[0].name + ' −' + live[0].pct + '%';
+  $('hhList').innerHTML = HHS.map(h => `<div class="bg-white/10 border ${h.live ? 'border-emerald-400' : 'border-white/15'} rounded-2xl p-3">
+    <div class="flex justify-between items-center gap-2"><span class="font-extrabold text-[13px] truncate">${esc(h.name)} • −${h.pct}%</span>
+    ${h.live ? '<span class="text-[9px] font-extrabold bg-emerald-500 px-2 py-0.5 rounded-full shrink-0">LIVE</span>' : `<button onclick="hhToggle('${h.id}',true)" class="text-[9px] font-extrabold bg-white/15 px-2 py-1 rounded-full btn-press shrink-0">TURN ON</button>`}</div>
+    <div class="text-[11px] opacity-60 font-semibold mt-0.5">${h.categories && h.categories.length ? esc(h.categories.join(', ')) : 'Whole menu'} • ${h.days && h.days.length ? h.days.map(d => DAYN[d]).join(' ') : 'Every day'} • ${h.start}–${h.end}</div>
+    <div class="flex gap-1.5 mt-2">
+      ${h.active !== false ? `<button onclick="hhToggle('${h.id}',false)" class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full bg-white/15 btn-press">Pause</button>` : ''}
+      <button onclick="hhDel('${h.id}')" class="text-[10px] font-extrabold px-2.5 py-1.5 rounded-full bg-red-500 btn-press">Delete</button>
+    </div></div>`).join('') || '<p class="text-[12px] opacity-60 font-semibold col-span-2">No happy hours yet — schedule one to fill slow evenings 👇</p>';
+}
+async function saveHH(){
+  const body = { name: $('hh_name').value, pct: Number($('hh_pct').value), categories: HHCATS[Number($('hh_cat').value)] ? [HHCATS[Number($('hh_cat').value)]] : [], days: hhDays, start: $('hh_start').value, end: $('hh_end').value, active: true };
+  const r = await fetch('/api/happyhours', { method: 'POST', headers: adm(), body: JSON.stringify(body) });
+  if (r.status === 401) return logout();
+  if (!r.ok) return toast('Could not save');
+  $('hh_name').value = ''; loadHH(); toast('Happy hour scheduled ⏰🎉');
+}
+async function hhToggle(id, on){ await fetch('/api/happyhours/' + id, { method: 'PUT', headers: adm(), body: JSON.stringify({ active: on }) }); loadHH(); }
+async function hhDel(id){ if (!confirm('Delete this happy hour?')) return; await fetch('/api/happyhours/' + id, { method: 'DELETE', headers: adm() }); loadHH(); }
+
+/* ── waiter calls ── */
+let ASSISTS = [];
+async function loadAssists(){
+  ASSISTS = await fetch('/api/assistance', { headers: adm() }).then(r => r.ok ? r.json() : []).catch(() => []);
+  renderAssists();
+}
+function assistAgo(at){ const s = Math.floor((Date.now() - at) / 1000); if (s < 60) return s + 's ago'; return Math.floor(s / 60) + 'm ago'; }
+function renderAssists(){
+  const bar = $('assistBar');
+  if (!ASSISTS.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  bar.innerHTML = `<div class="font-extrabold text-sm">🛎️ ${ASSISTS.length} table${ASSISTS.length > 1 ? 's' : ''} calling for service!</div>
+    <div class="flex gap-2 flex-wrap mt-2">${ASSISTS.map(a => `<span class="bg-white/20 rounded-full pl-3 pr-1.5 py-1 text-xs font-extrabold flex items-center gap-2">🪑 ${esc(a.table)} • ${assistAgo(a.at)}<button onclick="resolveAssist('${esc(a.table)}')" class="bg-white text-espresso rounded-full px-2.5 py-1 btn-press">Done ✓</button></span>`).join('')}</div>`;
+}
+async function resolveAssist(t){ await fetch('/api/assistance/' + t, { method: 'DELETE', headers: adm() }); loadAssists(); }
+function assistPing(list){
+  ASSISTS = list; renderAssists();
+  if (list.length) { if (soundOn) $('ding').play().catch(() => {}); toast('🛎️ Table ' + list[list.length - 1].table + ' needs service!'); }
+}
+(async () => { if (!token()) return; const r = await fetch('/api/stats', { headers: adm() }); if(r.ok){ $('loginGate').style.display='none'; connectSocket(); refresh(false); } })();
+</script>
+</body>
+</html>

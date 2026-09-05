@@ -1,0 +1,15 @@
+{
+  "name": "Brew & Bean Cafe — Order from your table",
+  "short_name": "Brew & Bean",
+  "description": "Scan the table QR, browse the menu and order — no app install needed.",
+  "start_url": "/menu.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF7F2",
+  "theme_color": "#1C1410",
+  "icons": [
+    { "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
