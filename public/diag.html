@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App Health Check</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#141010;color:#f3ece2;margin:0;padding:20px}
+  .card{background:#211915;border-radius:16px;padding:16px;margin:10px 0;font-weight:700;font-size:14px}
+  .ok{color:#4ade80}.bad{color:#f87171}.warn{color:#fbbf24}
+  button{background:#C2571B;color:#fff;border:0;border-radius:12px;padding:12px 20px;font-weight:800;font-size:15px;margin:4px}
+  #count{font-size:28px;font-weight:800}
+</style>
+</head>
+<body>
+<h2>🔧 Cafe App — Health Check</h2>
+<noscript><div class="card bad">❌ JAVASCRIPT IS DISABLED/BLOCKED — this is why buttons don't work. Enable it and reload.</div></noscript>
+<div class="card" id="r-js">… checking JavaScript</div>
+<div class="card" id="r-click">Tap test: <button onclick="tapTest()">TAP ME</button> <span id="count">0</span></div>
+<div class="card" id="r-store">… checking storage</div>
+<div class="card" id="r-cdn">… checking net access</div>
+<div class="card" id="r-api">… checking server</div>
+<script>
+var n = 0;
+function tapTest(){ n++; document.getElementById('count').textContent = n; }
+function line(id, ok, msg){ var el = document.getElementById(id); el.innerHTML = (ok ? '<span class="ok">✅ ' : '<span class="bad">❌ ') + msg + '</span>'; }
+line('r-js', true, 'JavaScript IS running');
+try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); line('r-store', true, 'Storage works (cart/orders will save)'); }
+catch (e) { line('r-store', false, 'Storage BLOCKED by browser — app now runs in memory mode'); }
+fetch('https://cdn.tailwindcss.com', { mode: 'no-cors' }).then(function(){ line('r-cdn', true, 'Internet/CDN reachable'); }).catch(function(){ line('r-cdn', false, 'CDN blocked — pages will look plain but buttons still work'); });
+fetch('/api/info').then(function(r){ return r.json(); }).then(function(d){
+  line('r-api', true, 'Server reachable — ' + d.cafeName + ' (' + d.tables.length + ' tables)');
+}).catch(function(){ line('r-api', false, 'Server UNREACHABLE — check connection / link is expired'); });
+</script>
+</body>
+</html>
