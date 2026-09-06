@@ -2,6 +2,22 @@
 
 Customer scans a table QR → beautiful menu opens → order goes live to dashboard.
 
+## Project structure (cafe only — nothing else lives here)
+```
+cafe-qr/
+├── server.js          # backend: API + realtime + security (the whole brain)
+├── public/
+│   ├── index.html     # landing page (for customers to discover you)
+│   ├── menu.html      # guest menu — what the table QR opens
+│   ├── dashboard.html # owner studio — orders, history, menu, meals, QR, settings
+│   ├── diag.html      # one-tap health check page
+│   ├── manifest.json + sw.js + icons/  # installable-app (PWA) files
+├── data/db.json       # your menu, orders, tables (auto-created + backed up)
+├── tests/smoke.js     # 30 automated checks (`npm test`)
+├── tests/load.js      # 100-order stampede test (`npm run loadtest`)
+├── Dockerfile + .dockerignore + .env.example + .gitignore
+```
+
 ## Run (on your own computer)
 ```bash
 cd cafe-qr
@@ -13,7 +29,7 @@ Then open these **on that same computer only** (`localhost` always means "this d
 - Customer menu: http://localhost:3000/menu.html?table=T1
 - Dashboard: http://localhost:3000/dashboard.html
 
-> Port 3000 busy (another app like Estate3D lives there)? Start with `PORT=3001 npm start` on Mac/Linux or `set PORT=3001 && npm start` on Windows, then use `http://localhost:3001/...`.
+> Port 3000 busy (another app on your machine uses it)? Start with `PORT=3001 npm start` on Mac/Linux or `set PORT=3001 && npm start` on Windows, then use `http://localhost:3001/...`.
 
 ## The real app (for cafes & customers)
 Deploy once (see **Deploy** below) and use your stable cloud URL everywhere — QR codes, phones, laptops:
