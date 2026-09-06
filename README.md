@@ -2,15 +2,23 @@
 
 Customer scans a table QR → beautiful menu opens → order goes live to dashboard.
 
-## Run
+## Run (on your own computer)
 ```bash
 cd cafe-qr
 npm install
 npm start
 ```
+Then open these **on that same computer only** (`localhost` always means "this device itself" — it will never work from another phone/laptop):
 - Landing: http://localhost:3000/
 - Customer menu: http://localhost:3000/menu.html?table=T1
 - Dashboard: http://localhost:3000/dashboard.html
+
+> Port 3000 busy (another app like Estate3D lives there)? Start with `PORT=3001 npm start` on Mac/Linux or `set PORT=3001 && npm start` on Windows, then use `http://localhost:3001/...`.
+
+## The real app (for cafes & customers)
+Deploy once (see **Deploy** below) and use your stable cloud URL everywhere — QR codes, phones, laptops:
+- Menu: `https://YOUR-APP.onrender.com/menu.html?table=T1`
+- Dashboard: `https://YOUR-APP.onrender.com/dashboard.html`
 
 ## How it works
 1. Dashboard → **Tables & QR** → Print QRs, stick on tables.
